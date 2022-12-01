@@ -11,25 +11,25 @@ fn main() {
     println!("three highest: {three}");
 }
 
-fn sort_calories(lines: &[String]) -> Vec<i32> {
+fn sort_calories(lines: &[String]) -> Vec<u32> {
     let mut v = lines
         .split(|s| s == "") // split by blank lines
         .map(|group| {
             // total up all the strings in each grouping
-            group.iter().map(|s| s.parse::<i32>().unwrap_or(0)).sum()
+            group.iter().map(|s| s.parse::<u32>().unwrap_or(0)).sum()
         })
-        .collect::<Vec<i32>>();
+        .collect::<Vec<u32>>();
 
     v.sort_by_key(|x| Reverse(*x));
     v
 }
 
-fn get_max(lines: &[String]) -> i32 {
+fn get_max(lines: &[String]) -> u32 {
     let cal = sort_calories(lines);
     *cal.first().unwrap()
 }
 
-fn get_max_three(lines: &[String]) -> i32 {
+fn get_max_three(lines: &[String]) -> u32 {
     let cal = sort_calories(lines);
     cal.iter().take(3).sum()
 }
