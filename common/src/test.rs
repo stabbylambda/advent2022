@@ -1,6 +1,9 @@
 use std::fmt::Debug;
 use std::str::FromStr;
 
+pub fn get_raw_input() -> String {
+    crate::util::get_raw_input("./test.txt")
+}
 pub fn get_input<T, F>(f: F) -> Vec<T>
 where
     F: Fn(&str) -> T,

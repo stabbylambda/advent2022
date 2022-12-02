@@ -19,7 +19,7 @@ fn main() {
 fn problem1(lines: &[String]) -> u32 {
     // using nom is overkill for this, but I figured there's gonna be a lot more parsing later so might as well
     // get some practice in
-    fn get_pair(s: &str) -> IResult<&str, (Hand, Hand)> {
+    fn get_pair(s: &str) -> (Hand, Hand) {
         fn get_hand(s: &str) -> IResult<&str, Hand> {
             alt((
                 map(alt((char('A'), char('X'))), |_| Hand::Rock),
@@ -28,12 +28,12 @@ fn problem1(lines: &[String]) -> u32 {
             ))(s)
         }
 
-        separated_pair(get_hand, space1, get_hand)(s)
+        separated_pair(get_hand, space1, get_hand)(s).unwrap().1
     }
 
     lines
         .iter()
-        .map(|x| get_pair(x).unwrap().1)
+        .map(|x| get_pair(x))
         .collect::<Vec<(Hand, Hand)>>()
         .iter()
         .map(|(o, s)| s.score(*o))
@@ -41,25 +41,31 @@ fn problem1(lines: &[String]) -> u32 {
 }
 
 fn problem2(lines: &[String]) -> u32 {
-    fn get_hand(s: &str) -> IResult<&str, (Hand, Strategy)> {
-        separated_pair(
-            alt((
-                map(char('A'), |_| Hand::Rock),
-                map(char('B'), |_| Hand::Paper),
-                map(char('C'), |_| Hand::Scissors),
-            )),
-            space1,
-            alt((
-                map(char('X'), |_| Strategy::Lose),
-                map(char('Y'), |_| Strategy::Draw),
-                map(char('Z'), |_| Strategy::Win),
-            )),
-        )(s)
+    fn parse_hand(s: &str) -> IResult<&str, Hand> {
+        alt((
+            map(char('A'), |_| Hand::Rock),
+            map(char('B'), |_| Hand::Paper),
+            map(char('C'), |_| Hand::Scissors),
+        ))(s)
+    }
+
+    fn parse_strategy(s: &str) -> IResult<&str, Strategy> {
+        alt((
+            map(char('X'), |_| Strategy::Lose),
+            map(char('Y'), |_| Strategy::Draw),
+            map(char('Z'), |_| Strategy::Win),
+        ))(s)
+    }
+
+    fn get_hands(s: &str) -> (Hand, Strategy) {
+        separated_pair(parse_hand, space1, parse_strategy)(s)
+            .unwrap()
+            .1
     }
 
     lines
         .iter()
-        .map(|x| get_hand(x).unwrap().1)
+        .map(|x| get_hands(x))
         .collect::<Vec<(Hand, Strategy)>>()
         .iter()
         .map(|(o, s)| s.get_hand(*o).score(*o))
