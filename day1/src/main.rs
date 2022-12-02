@@ -4,10 +4,10 @@ use common::get_input_strings;
 fn main() {
     let lines = get_input_strings();
 
-    let max = get_max(&lines);
+    let max = problem1(&lines);
     println!("single highest: {max}");
 
-    let three = get_max_three(&lines);
+    let three = problem2(&lines);
     println!("three highest: {three}");
 }
 
@@ -24,12 +24,12 @@ fn sort_calories(lines: &[String]) -> Vec<u32> {
     v
 }
 
-fn get_max(lines: &[String]) -> u32 {
+fn problem1(lines: &[String]) -> u32 {
     let cal = sort_calories(lines);
     *cal.first().unwrap()
 }
 
-fn get_max_three(lines: &[String]) -> u32 {
+fn problem2(lines: &[String]) -> u32 {
     let cal = sort_calories(lines);
     cal.iter().take(3).sum()
 }
@@ -40,14 +40,14 @@ mod test {
     #[test]
     fn first() {
         let lines = get_input_strings();
-        let max = crate::get_max(&lines);
+        let max = crate::problem1(&lines);
         assert_eq!(max, 24000)
     }
 
     #[test]
     fn second() {
         let lines = get_input_strings();
-        let max = crate::get_max_three(&lines);
+        let max = crate::problem2(&lines);
         assert_eq!(max, 45000)
     }
 }

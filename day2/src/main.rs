@@ -8,8 +8,10 @@ use nom::{
 };
 fn main() {
     let lines = get_input_strings();
+
     let score = problem1(&lines);
     println!("problem 1 score: {score}");
+
     let score = problem2(&lines);
     println!("problem 2 score: {score}");
 }
@@ -17,49 +19,54 @@ fn main() {
 fn problem1(lines: &[String]) -> u32 {
     // using nom is overkill for this, but I figured there's gonna be a lot more parsing later so might as well
     // get some practice in
-    fn naive_get_hand(s: &str) -> IResult<&str, Hand> {
-        let rock = map(alt((char('A'), char('X'))), |_| Hand::Rock);
-        let paper = map(alt((char('B'), char('Y'))), |_| Hand::Paper);
-        let scissors = map(alt((char('C'), char('Z'))), |_| Hand::Scissors);
-        alt((rock, paper, scissors))(s)
+    fn get_pair(s: &str) -> IResult<&str, (Hand, Hand)> {
+        fn get_hand(s: &str) -> IResult<&str, Hand> {
+            alt((
+                map(alt((char('A'), char('X'))), |_| Hand::Rock),
+                map(alt((char('B'), char('Y'))), |_| Hand::Paper),
+                map(alt((char('C'), char('Z'))), |_| Hand::Scissors),
+            ))(s)
+        }
+
+        separated_pair(get_hand, space1, get_hand)(s)
     }
 
-    fn naive_get_pair(s: &str) -> IResult<&str, (Hand, Hand)> {
-        separated_pair(naive_get_hand, char(' '), naive_get_hand)(s)
-    }
-
-    let hands: Vec<(Hand, Hand)> = lines.iter().map(|x| naive_get_pair(x).unwrap().1).collect();
-    let score: u32 = hands.iter().map(|(o, s)| s.score(*o)).sum();
-    score
+    lines
+        .iter()
+        .map(|x| get_pair(x).unwrap().1)
+        .collect::<Vec<(Hand, Hand)>>()
+        .iter()
+        .map(|(o, s)| s.score(*o))
+        .sum()
 }
 
 fn problem2(lines: &[String]) -> u32 {
     fn get_hand(s: &str) -> IResult<&str, (Hand, Strategy)> {
-        let hand = alt((
-            map(char('A'), |_| Hand::Rock),
-            map(char('B'), |_| Hand::Paper),
-            map(char('C'), |_| Hand::Scissors),
-        ));
-        let strategy = alt((
-            map(char('X'), |_| Strategy::Lose),
-            map(char('Y'), |_| Strategy::Draw),
-            map(char('Z'), |_| Strategy::Win),
-        ));
-
-        separated_pair(hand, space1, strategy)(s)
+        separated_pair(
+            alt((
+                map(char('A'), |_| Hand::Rock),
+                map(char('B'), |_| Hand::Paper),
+                map(char('C'), |_| Hand::Scissors),
+            )),
+            space1,
+            alt((
+                map(char('X'), |_| Strategy::Lose),
+                map(char('Y'), |_| Strategy::Draw),
+                map(char('Z'), |_| Strategy::Win),
+            )),
+        )(s)
     }
 
-    let plays: Vec<(Hand, Strategy)> = lines.iter().map(|x| get_hand(x).unwrap().1).collect();
-    plays
+    lines
         .iter()
-        .map(|(o, s)| {
-            let my_hand = s.get_hand(*o);
-            my_hand.score(*o)
-        })
+        .map(|x| get_hand(x).unwrap().1)
+        .collect::<Vec<(Hand, Strategy)>>()
+        .iter()
+        .map(|(o, s)| s.get_hand(*o).score(*o))
         .sum()
 }
 
-#[derive(Clone, Copy, Debug)]
+#[derive(Clone, Copy)]
 enum Hand {
     Rock,
     Paper,
