@@ -8,6 +8,9 @@ pub fn get_input_strings() -> Vec<String> {
     get_input(|s| s.to_owned())
 }
 
+/**
+ * Gets the current executable path so we can figure out where the input.txt and test.txt files are
+ */
 fn get_current_path() -> String {
     let e = std::env::current_exe().unwrap();
     let p = e.file_name().unwrap().to_str().unwrap();
