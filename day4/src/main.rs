@@ -1,5 +1,11 @@
-use common::{get_input_strings, parsing::number};
-use nom::{character::complete::char, combinator::map, sequence::separated_pair, IResult};
+use common::get_input_strings;
+
+use nom::{
+    character::complete::{char, u32 as nom_u32},
+    combinator::map,
+    sequence::separated_pair,
+    IResult,
+};
 fn main() {
     let lines = get_input_strings();
     let assignments = parse_assignments(&lines);
@@ -41,9 +47,10 @@ impl Assignment {
 }
 
 fn parse_range(s: &str) -> IResult<&str, Range> {
-    map(separated_pair(number, char('-'), number), |(start, end)| {
-        Range(start, end)
-    })(s)
+    map(
+        separated_pair(nom_u32, char('-'), nom_u32),
+        |(start, end)| Range(start, end),
+    )(s)
 }
 
 fn parse_assignments(input: &[String]) -> Vec<Assignment> {

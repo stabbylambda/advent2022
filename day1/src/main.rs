@@ -1,12 +1,13 @@
 use std::cmp::Reverse;
 
-use common::{get_raw_input, parsing::number};
+use common::get_raw_input;
 use nom::{
     branch::alt,
-    character::complete::line_ending,
+    character::complete::{line_ending, u32 as nom_u32},
     combinator::eof,
     multi::{fold_many0, separated_list1},
     sequence::terminated,
+    IResult,
 };
 fn main() {
     let lines = get_raw_input();
@@ -20,16 +21,16 @@ fn main() {
 }
 
 fn parse_calorie_groups(s: &str) -> Vec<u32> {
-    let mut parser = separated_list1(
+    let parsed: IResult<&str, Vec<u32>> = separated_list1(
         line_ending,
         fold_many0(
-            terminated(number, alt((line_ending, eof))),
+            terminated(nom_u32, alt((line_ending, eof))),
             || 0,
             |x, y| x + y,
         ),
-    );
+    )(s);
 
-    let (_, mut v) = parser(s).unwrap();
+    let (_, mut v) = parsed.unwrap();
     v.sort_by_key(|x| Reverse(*x));
     v
 }
