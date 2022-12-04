@@ -1,6 +1,7 @@
 use std::fmt::Debug;
 use std::str::FromStr;
 
+pub mod parsing;
 pub mod test;
 pub mod util;
 

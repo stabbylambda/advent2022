@@ -1,87 +1,89 @@
-use common::get_input_strings;
-use nom::{
-    character::complete::{char, digit1},
-    combinator::{map, map_res},
-    sequence::{delimited, separated_pair},
-    IResult,
-};
+use common::{get_input_strings, parsing::number};
+use nom::{character::complete::char, combinator::map, sequence::separated_pair, IResult};
 fn main() {
     let lines = get_input_strings();
+    let assignments = parse_assignments(&lines);
 
-    let score = problem1(&lines);
+    let score = problem1(&assignments);
     println!("problem 1 score: {score}");
 
-    let score = problem2(&lines);
+    let score = problem2(&assignments);
     println!("problem 2 score: {score}");
 }
 
-type Range = (u32, u32);
+#[derive(Debug)]
+struct Range(u32, u32);
+impl Range {
+    fn fully_contains(&self, other: &Range) -> bool {
+        self.0 <= other.0 && other.1 <= self.1
+    }
+
+    fn partially_contains(&self, other: &Range) -> bool {
+        let other_start_in_range = self.0 <= other.0 && other.0 <= self.1;
+        let other_end_in_range = self.0 <= other.1 && other.1 <= self.1;
+
+        other_start_in_range || other_end_in_range
+    }
+}
 #[derive(Debug)]
 struct Assignment {
     first: Range,
     second: Range,
 }
 impl Assignment {
-    fn new((first, second): (Range, Range)) -> Assignment {
-        Assignment { first, second }
-    }
-
     fn is_full_overlap(&self) -> bool {
-        let (s1, e1) = self.first;
-        let (s2, e2) = self.second;
+        self.first.fully_contains(&self.second) || self.second.fully_contains(&self.first)
+    }
 
-        let contains12 = s1 <= s2 && e2 <= e1;
-        let contains21 = s2 <= s1 && e1 <= e2;
-
-        contains12 || contains21
+    fn is_any_overlap(&self) -> bool {
+        self.first.partially_contains(&self.second) || self.second.partially_contains(&self.first)
     }
 }
 
-fn number(s: &str) -> IResult<&str, u32> {
-    map_res(digit1, |x| u32::from_str_radix(x, 10))(s)
+fn parse_range(s: &str) -> IResult<&str, Range> {
+    map(separated_pair(number, char('-'), number), |(start, end)| {
+        Range(start, end)
+    })(s)
 }
 
-fn get_assignments(s: &str) -> Assignment {
+fn parse_assignments(input: &[String]) -> Vec<Assignment> {
+    input.iter().map(parse_assignment).collect()
+}
+fn parse_assignment(s: &String) -> Assignment {
     map(
-        separated_pair(
-            separated_pair(number, char('-'), number),
-            char(','),
-            separated_pair(number, char('-'), number),
-        ),
-        Assignment::new,
+        separated_pair(parse_range, char(','), parse_range),
+        |(first, second)| Assignment { first, second },
     )(s)
     .unwrap()
     .1
 }
 
-fn problem1(lines: &[String]) -> u32 {
-    lines
-        .iter()
-        .map(|s| get_assignments(s))
-        .filter(|x| x.is_full_overlap())
-        .count() as u32
+fn problem1(assignments: &[Assignment]) -> u32 {
+    assignments.iter().filter(|x| x.is_full_overlap()).count() as u32
 }
 
-fn problem2(lines: &[String]) -> u32 {
-    0
+fn problem2(assignments: &[Assignment]) -> u32 {
+    assignments.iter().filter(|x| x.is_any_overlap()).count() as u32
 }
 
 #[cfg(test)]
 mod test {
     use common::test::get_input_strings;
 
-    use crate::{problem1, problem2};
+    use crate::{parse_assignments, problem1, problem2};
     #[test]
     fn first() {
         let lines = get_input_strings();
-        let result = problem1(&lines);
+        let assignments = parse_assignments(&lines);
+        let result = problem1(&assignments);
         assert_eq!(result, 2)
     }
 
     #[test]
     fn second() {
         let lines = get_input_strings();
-        let result = problem2(&lines);
-        assert_eq!(result, 0)
+        let assignments = parse_assignments(&lines);
+        let result = problem2(&assignments);
+        assert_eq!(result, 4)
     }
 }
