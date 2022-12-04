@@ -6,6 +6,7 @@ use nom::{
     sequence::separated_pair,
     IResult,
 };
+
 fn main() {
     let lines = get_input_strings();
     let assignments = parse_assignments(&lines);
@@ -30,6 +31,13 @@ impl Range {
 
         other_start_in_range || other_end_in_range
     }
+
+    fn parse(s: &str) -> IResult<&str, Range> {
+        map(
+            separated_pair(nom_u32, char('-'), nom_u32),
+            |(start, end)| Range(start, end),
+        )(s)
+    }
 }
 #[derive(Debug)]
 struct Assignment {
@@ -44,25 +52,20 @@ impl Assignment {
     fn is_any_overlap(&self) -> bool {
         self.first.partially_contains(&self.second) || self.second.partially_contains(&self.first)
     }
-}
 
-fn parse_range(s: &str) -> IResult<&str, Range> {
-    map(
-        separated_pair(nom_u32, char('-'), nom_u32),
-        |(start, end)| Range(start, end),
-    )(s)
+    fn parse(s: &str) -> IResult<&str, Assignment> {
+        map(
+            separated_pair(Range::parse, char(','), Range::parse),
+            |(first, second)| Assignment { first, second },
+        )(s)
+    }
 }
 
 fn parse_assignments(input: &[String]) -> Vec<Assignment> {
-    input.iter().map(parse_assignment).collect()
-}
-fn parse_assignment(s: &String) -> Assignment {
-    map(
-        separated_pair(parse_range, char(','), parse_range),
-        |(first, second)| Assignment { first, second },
-    )(s)
-    .unwrap()
-    .1
+    input
+        .iter()
+        .map(|s| Assignment::parse(s).unwrap().1)
+        .collect()
 }
 
 fn problem1(assignments: &[Assignment]) -> u32 {
