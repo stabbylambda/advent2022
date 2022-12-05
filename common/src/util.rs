@@ -3,6 +3,7 @@ use std::fs;
 use std::str::FromStr;
 
 pub fn get_raw_input(path: &str) -> String {
+    dbg!(path);
     fs::read_to_string(path).expect("Should have been able to read the file")
 }
 

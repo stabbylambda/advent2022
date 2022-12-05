@@ -1,53 +1,98 @@
-use common::get_input_strings;
+use common::get_raw_input;
 use nom::branch::alt;
-use nom::bytes::complete::{tag, take};
-use nom::character::complete::{alpha0, anychar, char, u32 as nom_u32};
-use nom::multi::separated_list0;
-use nom::sequence::delimited;
+use nom::bytes::complete::tag;
+use nom::character::complete::{alpha0, char, newline, not_line_ending, u32 as nom_u32};
+use nom::multi::{many0, separated_list0};
+use nom::sequence::{delimited, separated_pair, terminated};
 use nom::{
     combinator::map,
     sequence::{preceded, tuple},
     IResult,
 };
 fn main() {
-    let lines = get_input_strings();
-    let mut input = parse(&lines);
+    let raw = get_raw_input();
+    let mut input = Input::parse(&raw);
+    let mut input2 = input.clone();
 
     let score = problem1(&mut input);
     println!("problem 1 score: {score}");
 
-    let score = problem2(&input);
+    let score = problem2(&mut input2);
     println!("problem 2 score: {score}");
 }
 
 type Stack<'a> = Vec<&'a str>;
 
-#[derive(Debug)]
+#[derive(Clone, Debug)]
 struct Move {
     count: u32,
     from: usize,
     to: usize,
 }
 
-#[derive(Debug)]
+impl Move {
+    fn parse(s: &str) -> IResult<&str, Move> {
+        map(
+            tuple((
+                preceded(tag("move "), nom_u32),
+                preceded(tag(" from "), nom_u32),
+                preceded(tag(" to "), nom_u32),
+            )),
+            |(count, from, to)| Move {
+                count,
+                from: from as usize,
+                to: to as usize,
+            },
+        )(s)
+    }
+}
+
+#[derive(Clone, Debug)]
 struct Input<'a> {
     stacks: Vec<Stack<'a>>,
     moves: Vec<Move>,
 }
 
 impl Input<'_> {
-    fn execute(&mut self) -> String {
-        for m in &self.moves {
-            for _ in 0..m.count {
-                let from_stack = self.stacks.get_mut(m.from - 1).unwrap();
-                let Some(x) = from_stack.pop() else {
-                    panic!();
-                };
-                let to_stack = self.stacks.get_mut(m.to - 1).unwrap();
-                to_stack.push(x);
-            }
-        }
+    fn parse_crate(s: &str) -> IResult<&str, Option<&str>> {
+        alt((
+            map(delimited(char('['), alpha0, char(']')), Some),
+            map(tag("   "), |_| None),
+        ))(s)
+    }
 
+    fn parse_row(s: &str) -> IResult<&str, Vec<Option<&str>>> {
+        separated_list0(tag(" "), Input::parse_crate)(s)
+    }
+
+    fn invert_stacks(rows: Vec<Vec<Option<&str>>>) -> Vec<Stack> {
+        let stack_count = rows.first().unwrap().len();
+        (0..stack_count)
+            .map(|n| rows.iter().rev().filter_map(|row| row[n]).collect())
+            .collect()
+    }
+
+    fn parse_stacks(s: &str) -> IResult<&str, Vec<Stack>> {
+        map(
+            many0(terminated(Input::parse_row, newline)),
+            Input::invert_stacks,
+        )(s)
+    }
+
+    fn parse<'a>(raw: &'a str) -> Input<'a> {
+        map(
+            separated_pair(
+                Input::parse_stacks,
+                terminated(not_line_ending, tag("\n\n")),
+                separated_list0(newline, Move::parse),
+            ),
+            |(stacks, moves)| Input { stacks, moves },
+        )(raw)
+        .unwrap()
+        .1
+    }
+
+    fn print_tops(&self) -> String {
         self.stacks
             .iter()
             .map(|s| s.last().unwrap().to_owned())
@@ -55,108 +100,63 @@ impl Input<'_> {
     }
 }
 
-fn parse_crate(s: &str) -> IResult<&str, Option<&str>> {
-    map(
-        alt((delimited(char('['), alpha0, char(']')), tag("   "))),
-        |s| {
-            if s == "   " {
-                None
-            } else {
-                Some(s)
-            }
-        },
-    )(s)
-}
-
-fn parse_row(s: &str) -> IResult<&str, Vec<Option<&str>>> {
-    separated_list0(tag(" "), parse_crate)(s)
-}
-
-fn parse_starting(lines: &[String]) -> Vec<Stack> {
-    let (_, rest) = lines.split_last().unwrap();
-    let rows: Vec<Vec<Option<&str>>> = rest.iter().map(|l| parse_row(l).unwrap().1).collect();
-    let stack_count = rows[0].len();
-    let mut stacks = Vec::new();
-    for n in 0..stack_count {
-        let mut stack = Vec::new();
-        for row in &rows[..] {
-            if let Some(s) = row[n] {
-                stack.push(s);
-            };
-        }
-        stack.reverse();
-        stacks.push(stack);
-    }
-    stacks
-}
-
-fn parse_move(s: &str) -> IResult<&str, Move> {
-    map(
-        tuple((
-            preceded(tag("move "), nom_u32),
-            preceded(tag(" from "), nom_u32),
-            preceded(tag(" to "), nom_u32),
-        )),
-        |(count, from, to)| Move {
-            count,
-            from: from as usize,
-            to: to as usize,
-        },
-    )(s)
-}
-
-fn parse_moves(input: &[String]) -> Vec<Move> {
-    input.iter().map(|s| parse_move(s).unwrap().1).collect()
-}
-
-fn parse(lines: &[String]) -> Input {
-    let mut input = lines.split(|l| l.is_empty());
-    let stacks = input.next().unwrap();
-    let stacks = parse_starting(stacks);
-
-    let moves = input.next().unwrap();
-    let moves = parse_moves(moves);
-
-    Input { stacks, moves }
-}
-
 fn problem1(input: &mut Input) -> String {
-    input.execute()
+    for m in &input.moves {
+        for _ in 0..m.count {
+            let from_stack = input.stacks.get_mut(m.from - 1).unwrap();
+            let x = from_stack.pop().unwrap();
+            let to_stack = input.stacks.get_mut(m.to - 1).unwrap();
+            to_stack.push(x);
+        }
+    }
+
+    input.print_tops()
 }
 
-fn problem2(input: &Input) -> String {
-    "".to_string()
+fn problem2(input: &mut Input) -> String {
+    for m in &input.moves {
+        let from_stack = input.stacks.get_mut(m.from - 1).unwrap();
+        // I am sure there's a better way to do this, but it's late
+        let mut crane: Vec<&str> = (0..m.count).filter_map(|_| from_stack.pop()).collect();
+        crane.reverse();
+
+        let to_stack = input.stacks.get_mut(m.to - 1).unwrap();
+
+        to_stack.append(&mut crane);
+    }
+
+    input.print_tops()
 }
 
 #[cfg(test)]
 mod test {
-    use common::test::get_input_strings;
+    use common::test::get_raw_input;
 
-    use crate::{parse, parse_crate, parse_row, problem1, problem2};
+    use crate::{problem1, problem2, Input};
     #[test]
     fn first() {
-        let lines = get_input_strings();
-        let mut input = parse(&lines);
+        let raw = get_raw_input();
+        let mut input = Input::parse(&raw);
         let result = problem1(&mut input);
         assert_eq!(result, "CMZ")
     }
 
     #[test]
     fn second() {
-        let lines = get_input_strings();
-        let input = parse(&lines);
-        let result = problem2(&input);
-        assert_eq!(result, "")
+        let raw = get_raw_input();
+        let mut input = dbg!(Input::parse(&raw));
+        let result = problem2(&mut input);
+        assert_eq!(result, "MCD")
     }
     #[test]
     fn testparse() {
-        assert_eq!(parse_crate("[D]").unwrap().1, Some("D"));
-        assert_eq!(parse_crate("   ").unwrap().1, None);
+        assert_eq!(Input::parse_crate("[D]").unwrap().1, Some("D"));
+        assert_eq!(Input::parse_crate("   ").unwrap().1, None);
 
         let expected = vec![Some("Z"), Some("M"), Some("P")];
-        assert_eq!(parse_row("[Z] [M] [P]").unwrap().1, expected);
+        assert_eq!(Input::parse_row("[Z] [M] [P]").unwrap().1, expected);
 
         let expected = vec![None, Some("D"), None];
-        assert_eq!(parse_row("    [D]    ").unwrap().1, expected);
+        assert_eq!(Input::parse_row("    [D]    ").unwrap().1, expected);
     }
 }

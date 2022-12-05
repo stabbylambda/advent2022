@@ -18,7 +18,8 @@ fn get_current_path() -> String {
 }
 
 pub fn get_raw_input() -> String {
-    util::get_raw_input(&get_current_path())
+    let path = format!("./{}/input.txt", get_current_path());
+    util::get_raw_input(&path)
 }
 
 pub fn get_input<T, F>(f: F) -> Vec<T>
