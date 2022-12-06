@@ -25,7 +25,7 @@ type Stack<'a> = Vec<&'a str>;
 
 #[derive(Clone, Debug)]
 struct Move {
-    count: u32,
+    count: usize,
     from: usize,
     to: usize,
 }
@@ -39,9 +39,9 @@ impl Move {
                 preceded(tag(" to "), nom_u32),
             )),
             |(count, from, to)| Move {
-                count,
-                from: from as usize,
-                to: to as usize,
+                count: count as usize,
+                from: (from - 1) as usize,
+                to: (to - 1) as usize,
             },
         )(s)
     }
@@ -102,12 +102,13 @@ impl Input<'_> {
 
 fn problem1(input: &mut Input) -> String {
     for m in &input.moves {
-        for _ in 0..m.count {
-            let from_stack = input.stacks.get_mut(m.from - 1).unwrap();
-            let x = from_stack.pop().unwrap();
-            let to_stack = input.stacks.get_mut(m.to - 1).unwrap();
-            to_stack.push(x);
-        }
+        let from_stack = input.stacks.get_mut(m.from).unwrap();
+
+        let mut crane: Vec<&str> = from_stack.drain((from_stack.len() - m.count)..).collect();
+        crane.reverse();
+
+        let to_stack = input.stacks.get_mut(m.to).unwrap();
+        to_stack.append(&mut crane);
     }
 
     input.print_tops()
@@ -115,13 +116,11 @@ fn problem1(input: &mut Input) -> String {
 
 fn problem2(input: &mut Input) -> String {
     for m in &input.moves {
-        let from_stack = input.stacks.get_mut(m.from - 1).unwrap();
-        // I am sure there's a better way to do this, but it's late
-        let mut crane: Vec<&str> = (0..m.count).filter_map(|_| from_stack.pop()).collect();
-        crane.reverse();
+        let from_stack = input.stacks.get_mut(m.from).unwrap();
 
-        let to_stack = input.stacks.get_mut(m.to - 1).unwrap();
+        let mut crane = from_stack.drain((from_stack.len() - m.count)..).collect();
 
+        let to_stack = input.stacks.get_mut(m.to).unwrap();
         to_stack.append(&mut crane);
     }
 
