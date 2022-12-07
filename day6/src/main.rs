@@ -1,4 +1,4 @@
-use std::collections::HashSet;
+use std::collections::BTreeSet;
 
 use common::get_input_strings;
 fn main() {
@@ -13,13 +13,12 @@ fn main() {
 
 fn unique_string(count: usize, line: &str) -> u32 {
     let all_chars = line.chars().collect::<Vec<char>>();
-
-    let control = all_chars.windows(count).enumerate().find(|(idx, chars)| {
-        let set: HashSet<char> = HashSet::from_iter(chars.iter().map(|x| x.to_owned()));
+    let control = all_chars.windows(count).enumerate().find(|(_, chars)| {
+        let set: BTreeSet<&char> = chars.iter().collect();
         set.len() == count
     });
 
-    let (idx, sequence) = control.unwrap();
+    let (idx, _sequence) = control.unwrap();
     (idx + count) as u32
 }
 
