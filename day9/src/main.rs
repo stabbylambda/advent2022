@@ -2,8 +2,9 @@ use std::collections::BTreeSet;
 
 use common::get_raw_input;
 use nom::{
+    branch::alt,
     bytes::complete::tag,
-    character::complete::{anychar, newline, u32 as nom_u32},
+    character::complete::{char, newline, u32 as nom_u32},
     combinator::map,
     multi::separated_list1,
     sequence::separated_pair,
@@ -34,15 +35,15 @@ type Input = Vec<Step>;
 fn parse(input: &str) -> Input {
     let result: IResult<&str, Input> = separated_list1(
         newline,
-        map(
-            separated_pair(anychar, tag(" "), nom_u32),
-            |(dir, count)| match dir {
-                'U' => (Direction::Up, count),
-                'D' => (Direction::Down, count),
-                'L' => (Direction::Left, count),
-                'R' => (Direction::Right, count),
-                _ => panic!(),
-            },
+        separated_pair(
+            alt((
+                map(char('U'), |_| Direction::Up),
+                map(char('D'), |_| Direction::Down),
+                map(char('L'), |_| Direction::Left),
+                map(char('R'), |_| Direction::Right),
+            )),
+            tag(" "),
+            nom_u32,
         ),
     )(input);
 
@@ -70,7 +71,8 @@ impl Knot {
         21112        .....
     ```
     */
-    fn get_follower_position(leader: Knot, follower: Knot) -> Knot {
+    fn get_follower_position(&self, follower: Knot) -> Knot {
+        let leader = *self;
         let Knot((lx, ly)) = leader;
         let Knot((fx, fy)) = follower;
         let (dx, dy) = (lx - fx, ly - fy);
@@ -130,7 +132,7 @@ fn problem(knot_count: usize, input: &Input) -> usize {
 
             // now move all the rest according to the one in front of them
             for k in 1..knot_count {
-                points[k] = Knot::get_follower_position(points[k - 1], points[k]);
+                points[k] = points[k - 1].get_follower_position(points[k]);
 
                 // only track the tail positions
                 if k == knot_count - 1 {
