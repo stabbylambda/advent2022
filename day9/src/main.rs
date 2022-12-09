@@ -1,4 +1,4 @@
-use std::collections::{BTreeMap, BTreeSet};
+use std::collections::BTreeSet;
 
 use common::get_raw_input;
 use nom::{
@@ -16,7 +16,7 @@ fn main() {
     let score = problem1(&input);
     println!("problem 1 score: {score}");
 
-    let score = problem2(&input);
+    let score = problem2(&input, false);
     println!("problem 2 score: {score}");
 }
 
@@ -27,8 +27,10 @@ enum Direction {
     Left,
     Right,
 }
+
 type Step = (Direction, u32);
 type Input = Vec<Step>;
+
 fn parse(input: &str) -> Input {
     let result: IResult<&str, Input> = separated_list1(
         newline,
@@ -47,70 +49,96 @@ fn parse(input: &str) -> Input {
     result.unwrap().1
 }
 
-fn is_adjacent(_head @ (x1, y1): (i32, i32), tail: (i32, i32)) -> bool {
-    for dx in -1..=1 {
-        for dy in -1..=1 {
-            if (x1 + dx, y1 + dy) == tail {
-                return true;
-            }
-        }
-    }
-
-    false
-}
-
-fn problem1(input: &Input) -> usize {
-    let mut head = (0, 0);
-    let mut tail = (0, 0);
-
+fn problem(points: &mut Vec<(i32, i32)>, input: &Input, print: bool) -> usize {
     let mut visited: BTreeSet<(i32, i32)> = BTreeSet::new();
     visited.insert((0, 0));
+    if print {
+        println!("== Initial ==");
+        display(points.to_vec(), 20);
+    }
     for (dir, count) in input {
+        if print {
+            println!("== {dir:?} {count} ==");
+        }
         for _n in 1..=*count {
-            match dir {
-                Direction::Up => head.1 += 1,
-                Direction::Down => head.1 -= 1,
-                Direction::Left => head.0 -= 1,
-                Direction::Right => head.0 += 1,
-            }
+            let (hx, hy) = points[0];
+            // first move the leader
+            let head = match dir {
+                Direction::Up => (hx, hy + 1),
+                Direction::Down => (hx, hy - 1),
+                Direction::Left => (hx - 1, hy),
+                Direction::Right => (hx + 1, hy),
+            };
 
-            if !is_adjacent(head, tail) {
-                let (tx, ty) = tail;
-                let delta = (head.0 - tail.0, head.1 - tail.1);
+            points[0] = head;
 
-                tail = match delta {
-                    // T west of H
-                    (2, 1) => (tx + 1, ty + 1),
-                    (2, 0) => (tx + 1, ty),
-                    (2, -1) => (tx + 1, ty - 1),
+            for k in 0..points.len() - 1 {
+                let (hx, hy) = points[k];
+                let (tx, ty) = points[k + 1];
+                let (dx, dy) = (hx - tx, hy - ty);
 
-                    // T south of H
-                    (1, 2) => (tx + 1, ty + 1),
-                    (0, 2) => (tx, ty + 1),
-                    (-1, 2) => (tx - 1, ty + 1),
+                // then move the follower, who only needs to move if the leader is 2 spaces away
+                let follower = match (dx, dy) {
+                    // for problem 2, pure diagonal moves are possible
+                    (2, 2) => (tx + 1, ty + 1),
+                    (-2, -2) => (tx - 1, ty - 1),
+                    (2, -2) => (tx + 1, ty - 1),
+                    (-2, 2) => (tx - 1, ty + 1),
 
-                    // T north of H
-                    (1, -2) => (tx + 1, ty - 1),
-                    (0, -2) => (tx, ty - 1),
-                    (-1, -2) => (tx - 1, ty - 1),
-
-                    // T east of H
-                    (-2, 1) => (tx - 1, ty + 1),
-                    (-2, 0) => (tx - 1, ty),
-                    (-2, -1) => (tx - 1, ty - 1),
-
-                    _ => panic!(),
+                    (2, _) => (tx + 1, ty + dy),
+                    (-2, _) => (tx - 1, ty + dy),
+                    (_, 2) => (tx + dx, ty + 1),
+                    (_, -2) => (tx + dx, ty - 1),
+                    _ => (tx, ty),
                 };
 
-                visited.insert(tail.clone());
+                points[k + 1] = follower;
+                // only track the tail
+                if k + 1 == points.len() - 1 {
+                    visited.insert(follower.clone());
+                }
+            }
+            if print {
+                display(points.to_vec(), 40);
             }
         }
     }
     visited.len()
 }
 
-fn problem2(lines: &Input) -> u32 {
-    0
+fn problem1(input: &Input) -> usize {
+    let mut points: Vec<(i32, i32)> = vec![(0, 0); 2];
+    problem(&mut points, input, false)
+}
+
+fn display(positions: Vec<(i32, i32)>, size: i32) {
+    let (ox, oy) = (size / 2, size / 2);
+    let mut grid = vec![vec![None; size as usize]; size as usize];
+    for (idx, (x, y)) in positions.iter().enumerate() {
+        let cell = grid[(oy + *y) as usize][(ox + *x) as usize];
+        grid[(oy + *y) as usize][(ox + *x) as usize] = match cell {
+            None => Some(idx),
+            Some(idx) => Some(idx),
+        }
+    }
+
+    for y in (0usize..size as usize).rev() {
+        for x in 0usize..size as usize {
+            match grid[y][x] {
+                Some(n) if n == 0 => print!("H"),
+                Some(n) if n == positions.len() - 1 => print!("T"),
+                Some(n) => print!("{n}"),
+                None => print!("."),
+            }
+        }
+        println!()
+    }
+    println!()
+}
+
+fn problem2(input: &Input, print: bool) -> usize {
+    let mut points: Vec<(i32, i32)> = vec![(0, 0); 10];
+    problem(&mut points, input, print)
 }
 
 #[cfg(test)]
@@ -127,10 +155,25 @@ mod test {
     }
 
     #[test]
-    fn second() {
+    fn second1() {
         let input = get_raw_input();
         let input = parse(&input);
-        let result = problem2(&input);
+        let result = problem2(&input, true);
+        assert_eq!(result, 1)
+    }
+
+    #[test]
+    fn second2() {
+        let input = r#"R 5
+U 8
+L 8
+D 3
+R 17
+D 10
+L 25
+U 20"#;
+        let input = parse(&input);
+        let result = problem2(&input, true);
         assert_eq!(result, 36)
     }
 }
