@@ -77,23 +77,14 @@ impl Knot {
         let Knot((fx, fy)) = follower;
         let (dx, dy) = (lx - fx, ly - fy);
 
-        Knot(match (dx, dy) {
-            // for problem 2, hit the pure diagonal moves
-            (2, 2) => (fx + 1, fy + 1),   // leader up-left
-            (-2, -2) => (fx - 1, fy - 1), // leader down-right
-            (2, -2) => (fx + 1, fy - 1),  // leader up-right
-            (-2, 2) => (fx - 1, fy + 1),  // leader down-left
+        /* Neat, TIL about https://en.wikipedia.org/wiki/Chebyshev_distance which replaces
+        the crappy manual math I had done.
+         */
 
-            // the OG problem 1 moves
-            (2, _) => (fx + 1, ly),  // leader up
-            (-2, _) => (fx - 1, ly), // leader down
-            (_, 2) => (lx, fy + 1),  // leader right
-            (_, -2) => (lx, fy - 1), // leader left
-
-            /* anything else, we just stay put, the leader is already adjacent
-            thanks to the weird move pattern
-            */
-            _ => (fx, fy),
+        Knot(if dx.abs() > 1 || dy.abs() > 1 {
+            (fx + dx.signum(), fy + dy.signum())
+        } else {
+            (fx, fy)
         })
     }
 
