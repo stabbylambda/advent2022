@@ -16,7 +16,7 @@ fn main() {
     let score = problem1(&input);
     println!("problem 1 score: {score}");
 
-    let score = problem2(&input, false);
+    let score = problem2(&input);
     println!("problem 2 score: {score}");
 }
 
@@ -49,74 +49,115 @@ fn parse(input: &str) -> Input {
     result.unwrap().1
 }
 
-fn problem(points: &mut Vec<(i32, i32)>, input: &Input, print: bool) -> usize {
-    let mut visited: BTreeSet<(i32, i32)> = BTreeSet::new();
-    visited.insert((0, 0));
-    if print {
-        println!("== Initial ==");
-        display(points.to_vec(), 20);
+#[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+struct Knot((i32, i32));
+impl Knot {
+    /** Calculate the follower position according to these moves.
+
+    Given:
+     * L: the leader
+     * 1: the possible positions for problem 1
+     * 2: the possible extra position for problem 2
+
+    We want to translate them to the following
+
+    ```
+        input        result
+        21112        .....
+        1...1        .212.
+        1.H.1  --->  .1H1.
+        1...1        .212.
+        21112        .....
+    ```
+    */
+    fn get_follower_position(leader: Knot, follower: Knot) -> Knot {
+        let Knot((lx, ly)) = leader;
+        let Knot((fx, fy)) = follower;
+        let (dx, dy) = (lx - fx, ly - fy);
+
+        Knot(match (dx, dy) {
+            // for problem 2, hit the pure diagonal moves
+            (2, 2) => (fx + 1, fy + 1),   // leader up-left
+            (-2, -2) => (fx - 1, fy - 1), // leader down-right
+            (2, -2) => (fx + 1, fy - 1),  // leader up-right
+            (-2, 2) => (fx - 1, fy + 1),  // leader down-left
+
+            // the OG problem 1 moves
+            (2, _) => (fx + 1, ly),  // leader up
+            (-2, _) => (fx - 1, ly), // leader down
+            (_, 2) => (lx, fy + 1),  // leader right
+            (_, -2) => (lx, fy - 1), // leader left
+
+            /* anything else, we just stay put, the leader is already adjacent
+            thanks to the weird move pattern
+            */
+            _ => (fx, fy),
+        })
     }
+
+    fn move_dir(&self, dir: &Direction) -> Knot {
+        let (x, y) = self.0;
+        Knot(match dir {
+            Direction::Up => (x, y + 1),
+            Direction::Down => (x, y - 1),
+            Direction::Left => (x - 1, y),
+            Direction::Right => (x + 1, y),
+        })
+    }
+}
+
+const PRINT_GRID: bool = false;
+const GRID_SIZE: i32 = 40;
+fn problem(knot_count: usize, input: &Input) -> usize {
+    let mut points: Vec<Knot> = vec![Knot((0, 0)); knot_count];
+
+    // keep track of all the points where the tail has been in a set
+    let mut visited: BTreeSet<Knot> = BTreeSet::new();
+    visited.insert(Knot((0, 0)));
+
+    if PRINT_GRID {
+        println!("== Initial ==");
+        display(points.to_vec());
+    }
+
     for (dir, count) in input {
-        if print {
+        if PRINT_GRID {
             println!("== {dir:?} {count} ==");
         }
         for _n in 1..=*count {
-            let (hx, hy) = points[0];
             // first move the leader
-            let head = match dir {
-                Direction::Up => (hx, hy + 1),
-                Direction::Down => (hx, hy - 1),
-                Direction::Left => (hx - 1, hy),
-                Direction::Right => (hx + 1, hy),
-            };
+            points[0] = points[0].move_dir(dir);
 
-            points[0] = head;
+            // now move all the rest according to the one in front of them
+            for k in 1..knot_count {
+                points[k] = Knot::get_follower_position(points[k - 1], points[k]);
 
-            for k in 0..points.len() - 1 {
-                let (hx, hy) = points[k];
-                let (tx, ty) = points[k + 1];
-                let (dx, dy) = (hx - tx, hy - ty);
-
-                // then move the follower, who only needs to move if the leader is 2 spaces away
-                let follower = match (dx, dy) {
-                    // for problem 2, pure diagonal moves are possible
-                    (2, 2) => (tx + 1, ty + 1),
-                    (-2, -2) => (tx - 1, ty - 1),
-                    (2, -2) => (tx + 1, ty - 1),
-                    (-2, 2) => (tx - 1, ty + 1),
-
-                    (2, _) => (tx + 1, ty + dy),
-                    (-2, _) => (tx - 1, ty + dy),
-                    (_, 2) => (tx + dx, ty + 1),
-                    (_, -2) => (tx + dx, ty - 1),
-                    _ => (tx, ty),
-                };
-
-                points[k + 1] = follower;
-                // only track the tail
-                if k + 1 == points.len() - 1 {
-                    visited.insert(follower.clone());
+                // only track the tail positions
+                if k == knot_count - 1 {
+                    visited.insert(points[k].clone());
                 }
             }
-            if print {
-                display(points.to_vec(), 40);
+
+            if PRINT_GRID {
+                display(points.to_vec());
             }
         }
     }
     visited.len()
 }
 
-fn problem1(input: &Input) -> usize {
-    let mut points: Vec<(i32, i32)> = vec![(0, 0); 2];
-    problem(&mut points, input, false)
-}
-
-fn display(positions: Vec<(i32, i32)>, size: i32) {
+// horrible hacky display code that barely works
+fn display(positions: Vec<Knot>) {
+    let size = GRID_SIZE as i32;
     let (ox, oy) = (size / 2, size / 2);
     let mut grid = vec![vec![None; size as usize]; size as usize];
-    for (idx, (x, y)) in positions.iter().enumerate() {
-        let cell = grid[(oy + *y) as usize][(ox + *x) as usize];
-        grid[(oy + *y) as usize][(ox + *x) as usize] = match cell {
+    for (idx, Knot((x, y))) in positions.iter().enumerate() {
+        let x = (ox + *x) as usize;
+        let y = (oy + *y) as usize;
+        let cell = grid[y][x];
+
+        // don't overwrite with later knots
+        grid[y][x] = match cell {
             None => Some(idx),
             Some(idx) => Some(idx),
         }
@@ -136,9 +177,12 @@ fn display(positions: Vec<(i32, i32)>, size: i32) {
     println!()
 }
 
-fn problem2(input: &Input, print: bool) -> usize {
-    let mut points: Vec<(i32, i32)> = vec![(0, 0); 10];
-    problem(&mut points, input, print)
+fn problem1(input: &Input) -> usize {
+    problem(2, input)
+}
+
+fn problem2(input: &Input) -> usize {
+    problem(10, input)
 }
 
 #[cfg(test)]
@@ -158,7 +202,7 @@ mod test {
     fn second1() {
         let input = get_raw_input();
         let input = parse(&input);
-        let result = problem2(&input, true);
+        let result = problem2(&input);
         assert_eq!(result, 1)
     }
 
@@ -173,7 +217,7 @@ D 10
 L 25
 U 20"#;
         let input = parse(&input);
-        let result = problem2(&input, true);
+        let result = problem2(&input);
         assert_eq!(result, 36)
     }
 }
