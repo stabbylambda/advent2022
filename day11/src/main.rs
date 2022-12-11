@@ -2,7 +2,7 @@ use common::get_raw_input;
 use nom::branch::alt;
 use nom::{
     bytes::complete::tag,
-    character::complete::{newline, u32 as nom_u32},
+    character::complete::{newline, u64 as nom_u64},
     combinator::map,
     multi::separated_list1,
     sequence::{delimited, preceded, separated_pair, tuple},
@@ -11,30 +11,31 @@ use nom::{
 
 fn main() {
     let input = get_raw_input();
-    let mut input = parse(&input);
+    let mut monkeys = parse(&input);
 
-    let score = problem1(&mut input);
+    let score = problem1(&mut monkeys);
     println!("problem 1 score: {score}");
 
-    let score = problem2(&input);
+    let mut monkeys = parse(&input);
+    let score = problem2(&mut monkeys);
     println!("problem 2 score: {score}");
 }
 
 type Input = Vec<Monkey>;
 #[derive(Debug)]
 struct Monkey {
-    number: u32,
-    items: Vec<u32>,
+    number: u64,
+    items: Vec<u64>,
     operation: Operation,
-    divisible_by: u32,
+    divisible_by: u64,
     if_true: usize,
     if_false: usize,
-    inspected: u32,
+    inspected: usize,
 }
 
 #[derive(Debug)]
 enum OperationValue {
-    Constant(u32),
+    Constant(u64),
     Old,
 }
 #[derive(Debug)]
@@ -52,7 +53,7 @@ fn parse_operation(input: &str) -> IResult<&str, Operation> {
             )),
             tag(" "),
             alt((
-                map(nom_u32, |x| OperationValue::Constant(x)),
+                map(nom_u64, |x| OperationValue::Constant(u64::from(x))),
                 map(tag("old"), |_| OperationValue::Old),
             )),
         ),
@@ -66,25 +67,28 @@ fn parse_operation(input: &str) -> IResult<&str, Operation> {
 fn parse_monkey(input: &str) -> IResult<&str, Monkey> {
     map(
         tuple((
-            delimited(tag("Monkey "), nom_u32, tag(":\n")),
+            delimited(tag("Monkey "), nom_u64, tag(":\n")),
             delimited(
                 tag("  Starting items: "),
-                separated_list1(tag(", "), nom_u32),
+                separated_list1(tag(", "), nom_u64),
                 newline,
             ),
             delimited(tag("  Operation: new = old "), parse_operation, newline),
-            delimited(tag("  Test: divisible by "), nom_u32, newline),
-            delimited(tag("    If true: throw to monkey "), nom_u32, newline),
-            preceded(tag("    If false: throw to monkey "), nom_u32),
+            delimited(tag("  Test: divisible by "), nom_u64, newline),
+            delimited(tag("    If true: throw to monkey "), nom_u64, newline),
+            preceded(tag("    If false: throw to monkey "), nom_u64),
         )),
-        |(number, items, operation, divisible_by, if_true, if_false)| Monkey {
-            number,
-            items,
-            operation,
-            divisible_by,
-            if_true: if_true as usize,
-            if_false: if_false as usize,
-            inspected: 0,
+        |(number, items, operation, divisible_by, if_true, if_false)| {
+            let items = items.iter().map(|x| u64::from(*x)).collect();
+            Monkey {
+                number,
+                items,
+                operation,
+                divisible_by: u64::from(divisible_by),
+                if_true: if_true as usize,
+                if_false: if_false as usize,
+                inspected: 0,
+            }
         },
     )(input)
 }
@@ -94,23 +98,26 @@ fn parse(input: &str) -> Input {
     monkeys
 }
 
-type ThrowTo = (u32, usize);
+type ThrowTo = (u64, usize);
 
 impl Monkey {
-    fn inspect_all(&mut self) -> Vec<ThrowTo> {
+    fn inspect_all(&mut self, worry_divisor: Option<u64>) -> Vec<ThrowTo> {
         // figure out where all the items are going
-        let results: Vec<(u32, usize)> =
-            self.items.iter().map(|item| self.inspect(*item)).collect();
+        let results: Vec<(u64, usize)> = self
+            .items
+            .iter()
+            .map(|item| self.inspect(item, worry_divisor))
+            .collect();
 
-        self.inspected += results.len() as u32;
+        self.inspected += results.len();
 
         // clear out this monkey's items
         self.items.clear();
 
         results
     }
-    fn inspect(&self, item: u32) -> ThrowTo {
-        println!("  Monkey inspects an item with a worry level of {}.", item);
+    fn inspect(&self, item: &u64, worry_divisor: Option<u64>) -> ThrowTo {
+        // do the operation
         let item = match &self.operation {
             Operation::Add(v) => {
                 item + match v {
@@ -125,26 +132,28 @@ impl Monkey {
                 }
             }
         };
-        println!("  Worry level increases to {}.", item);
-        let item = item / 3;
-        println!("  Monkey is bored. Worry level goes to {}.", item);
+
+        // part 1 has us divide by 3, in part 2 we need to modulo by the LCM of the monkeys divisibility
+        let item = match worry_divisor {
+            None => item / 3,
+            Some(x) => item % x,
+        };
+
+        //
         let result = item % self.divisible_by == 0;
-        println!(
-            "  Worry level is divisible by {}? {}",
-            self.divisible_by, result
-        );
+
         let throw_to = if result { self.if_true } else { self.if_false };
 
         (item, throw_to)
     }
 }
 
-fn round(monkeys: &mut Input) {
+fn round(monkeys: &mut Input, worry_divisor: Option<u64>) {
     for n in 0..monkeys.len() {
-        println!("Monkey {}:", n);
+        // println!("Monkey {}:", n);
         let monkey = monkeys.get_mut(n).unwrap();
 
-        let results = monkey.inspect_all();
+        let results = monkey.inspect_all(worry_divisor);
 
         // distribute to the other monkeys
         for (item, throw_to) in results {
@@ -155,27 +164,43 @@ fn round(monkeys: &mut Input) {
 
 fn print_monkeys(monkeys: &Input) {
     for m in monkeys {
-        let items: Vec<String> = m.items.iter().map(|x| x.to_string()).collect();
-        let items = items.join(", ");
+        // let items: Vec<String> = m.items.iter().map(|x| x.to_string()).collect();
+        // let items = items.join(", ");
 
-        println!("Monkey {}: {} | {}", m.number, items, m.inspected);
+        println!("Monkey {}: {}", m.number, m.inspected);
     }
 }
 
-fn problem1(monkeys: &mut Input) -> u32 {
-    for _n in 0..20 {
-        round(monkeys);
-    }
-
+fn get_monkey_business(monkeys: &mut Input) -> usize {
     monkeys.sort_by(|a, b| b.inspected.cmp(&a.inspected));
-
     let monkey_business = monkeys[0].inspected * monkeys[1].inspected;
-
     monkey_business
 }
 
-fn problem2(lines: &Input) -> u32 {
-    todo!()
+fn problem1(monkeys: &mut Input) -> usize {
+    for _n in 1..=20 {
+        round(monkeys, None);
+    }
+
+    get_monkey_business(monkeys)
+}
+
+fn problem2(monkeys: &mut Input) -> usize {
+    let lcm: u64 = monkeys.iter().map(|m| m.divisible_by).product();
+
+    for _n in 1..=10000 {
+        round(monkeys, Some(lcm));
+        if [
+            1, 20, 1000, 2000, 3000, 4000, 5000, 6000, 7000, 8000, 9000, 10000,
+        ]
+        .contains(&_n)
+        {
+            println!("======= After round {_n} ======");
+            print_monkeys(monkeys)
+        }
+    }
+
+    get_monkey_business(monkeys)
 }
 
 #[cfg(test)]
@@ -194,8 +219,8 @@ mod test {
     #[test]
     fn second() {
         let input = get_raw_input();
-        let input = parse(&input);
-        let result = problem2(&input);
-        assert_eq!(result, 0)
+        let mut input = parse(&input);
+        let result = problem2(&mut input);
+        assert_eq!(result, 2713310158)
     }
 }
