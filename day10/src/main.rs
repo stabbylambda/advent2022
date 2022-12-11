@@ -1,14 +1,9 @@
-use std::collections::HashMap;
+use std::vec;
 
 use common::get_raw_input;
 use nom::{
-    branch::alt,
-    bytes::complete::tag,
-    character::complete::newline,
-    combinator::map,
-    multi::separated_list1,
-    sequence::{preceded, separated_pair},
-    IResult,
+    branch::alt, bytes::complete::tag, character::complete::newline, combinator::map,
+    multi::separated_list1, sequence::preceded, IResult,
 };
 
 fn main() {
@@ -19,7 +14,7 @@ fn main() {
     println!("problem 1 score: {score}");
 
     let score = problem2(&input);
-    println!("problem 2 score: {score}");
+    println!("problem 2 score:\n{score}");
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -27,6 +22,7 @@ enum Instruction {
     NoOp,
     AddX(i32),
 }
+
 type Input = Vec<Instruction>;
 
 fn parse(input: &str) -> Input {
@@ -43,61 +39,112 @@ fn parse(input: &str) -> Input {
     result.unwrap().1
 }
 
+const INTERESTING: [u32; 6] = [20, 60, 100, 140, 180, 220];
 fn problem1(lines: &Input) -> i32 {
-    let mut cpu = CPU::new();
-    cpu.execute(lines);
+    let mut signals = vec![];
 
-    cpu.signal
+    let mut cpu = CPU::new(lines);
+    cpu.execute(|CycleResult { cycle, register_x }| {
+        if INTERESTING.contains(&cycle) {
+            let signal_strength = (cycle as i32) * register_x;
+            signals.push(signal_strength);
+        }
+    });
+
+    signals.iter().sum()
 }
 
-fn problem2(lines: &Input) -> u32 {
-    todo!()
+#[derive(Debug)]
+struct CRT {
+    pixels: [bool; 240],
 }
 
-struct CPU {
-    cycle: i32,
+impl CRT {
+    fn draw(&mut self, CycleResult { cycle, register_x }: CycleResult) {
+        let current = (cycle - 1) % 40;
+        let sprite_positions: Vec<i32> = (register_x - 1..=register_x + 1).collect();
+        let on = sprite_positions.contains(&(current as i32));
+        self.pixels[(cycle - 1) as usize] = on;
+    }
+
+    fn get_message(&self) -> String {
+        let v: Vec<String> = self
+            .pixels
+            .chunks(40)
+            .map(|x| {
+                x.iter()
+                    .map(|x| match x {
+                        true => "#",
+                        false => " ",
+                    })
+                    .collect()
+            })
+            .collect();
+
+        v.join("\n")
+    }
+}
+
+fn problem2(lines: &Input) -> String {
+    let mut cpu = CPU::new(lines);
+    let mut crt = CRT {
+        pixels: [false; 240],
+    };
+
+    cpu.execute(|result| {
+        crt.draw(result);
+    });
+
+    crt.get_message()
+}
+
+struct CPU<'a> {
+    cycle: u32,
     register_x: i32,
-    pipeline: HashMap<i32, Instruction>,
-    signal: i32,
+    instructions: &'a [Instruction],
 }
 
-impl CPU {
-    fn new() -> CPU {
+struct CycleResult {
+    cycle: u32,
+    register_x: i32,
+}
+
+impl<'a> CPU<'a> {
+    fn new(instructions: &[Instruction]) -> CPU {
         CPU {
             register_x: 1,
             cycle: 0,
-            pipeline: HashMap::new(),
-            signal: 0,
+            instructions,
         }
     }
 
-    fn increment_cycle(&mut self) {
-        self.cycle += 1;
-
-        let interesting = vec![20, 60, 100, 140, 180, 220];
-        if interesting.contains(&self.cycle) {
-            println!("Adding {} to signal", self.signal_strength());
-            self.signal += self.signal_strength();
-        }
-    }
-
-    fn execute(&mut self, instructions: &[Instruction]) {
-        for i in instructions {
+    fn execute(&mut self, mut f: impl FnMut(CycleResult) -> ()) {
+        for i in self.instructions {
             match i {
                 Instruction::AddX(v) => {
-                    self.increment_cycle();
-                    self.increment_cycle();
+                    self.cycle += 1;
+                    f(CycleResult {
+                        cycle: self.cycle,
+                        register_x: self.register_x,
+                    });
+
+                    self.cycle += 1;
+                    f(CycleResult {
+                        cycle: self.cycle,
+                        register_x: self.register_x,
+                    });
+
                     self.register_x += v;
                 }
                 Instruction::NoOp => {
-                    self.increment_cycle();
+                    self.cycle += 1;
+                    f(CycleResult {
+                        cycle: self.cycle,
+                        register_x: self.register_x,
+                    });
                 }
             }
         }
-    }
-
-    fn signal_strength(&self) -> i32 {
-        self.cycle * self.register_x
     }
 }
 
@@ -116,9 +163,17 @@ mod test {
 
     #[test]
     fn second() {
+        const EXPECTED: &str = "##  ##  ##  ##  ##  ##  ##  ##  ##  ##  
+###   ###   ###   ###   ###   ###   ### 
+####    ####    ####    ####    ####    
+#####     #####     #####     #####     
+######      ######      ######      ####
+#######       #######       #######     ";
+
         let input = get_raw_input();
         let input = parse(&input);
         let result = problem2(&input);
-        assert_eq!(result, 0)
+
+        assert_eq!(result, EXPECTED)
     }
 }
