@@ -1,6 +1,6 @@
-use std::{cmp::Ordering, collections::BinaryHeap};
-
+use common::dijkstra::{shortest_path, Edge};
 use common::get_raw_input;
+use common::map::Map;
 use nom::{
     branch::alt,
     bytes::complete::tag,
@@ -9,9 +9,6 @@ use nom::{
     multi::{many1, separated_list1},
     IResult,
 };
-
-pub mod map;
-use map::{CoordExt, Map};
 
 fn main() {
     let input = get_raw_input();
@@ -40,6 +37,7 @@ impl From<&Position> for u32 {
         }) as u32
     }
 }
+
 impl Position {
     fn can_travel_to(&self, dest: &Position) -> bool {
         let start_height: u32 = self.into();
@@ -58,166 +56,76 @@ impl Position {
 }
 
 fn parse(input: &str) -> Input {
-    let result: IResult<&str, Vec<Vec<Position>>> = separated_list1(
-        newline,
-        many1(alt((
-            map(tag("S"), |_| Position::Start),
-            map(tag("E"), |_| Position::End),
-            map(none_of("\n"), |c| Position::Normal(c)),
-        ))),
+    let result: IResult<&str, Map<Position>> = map(
+        separated_list1(
+            newline,
+            many1(alt((
+                map(tag("S"), |_| Position::Start),
+                map(tag("E"), |_| Position::End),
+                map(none_of("\n"), |c| Position::Normal(c)),
+            ))),
+        ),
+        |points| Map::new(points),
     )(input);
 
-    let points = result.unwrap().1;
-    let map = Map::new(points);
-
-    Input::new(map)
+    result.unwrap().1
 }
 
-#[derive(Debug)]
-struct Edge {
-    node: usize,
-    cost: usize,
-}
-#[derive(Debug)]
-struct Input {
-    start: usize,
-    finish: usize,
-    map: Map<Position>,
-}
+type Input = Map<Position>;
 
-impl Input {
-    fn new(map: Map<Position>) -> Input {
-        let width = map.width;
-        let height = map.height;
-
-        let mut start: usize = 0;
-        let mut finish: usize = 0;
-        for x in 0..width {
-            for y in 0..height {
-                match map.get((x, y)) {
-                    Position::Start => start = (x, y).to_position(width),
-                    Position::End => finish = (x, y).to_position(width),
-                    Position::Normal(_) => {}
-                }
-            }
-        }
-
-        Input { map, start, finish }
-    }
-}
-
-trait MapExt {
-    fn to_edges(&self) -> Vec<Vec<Edge>>;
-}
-
-impl MapExt for Map<Position> {
-    fn to_edges(&self) -> Vec<Vec<Edge>> {
-        let mut edges: Vec<Vec<Edge>> = Vec::new();
-        for y in 0..self.height {
-            for x in 0..self.width {
-                let coord = (x, y);
-                let letter = self.get(coord);
-                let self_edges = self
-                    .neighbors(coord)
-                    .iter()
-                    .filter_map(|c| {
-                        letter.can_travel_to(self.get(*c)).then(|| {
-                            // all edges are 1 for this purpose because we already eliminated all the
-                            // invalid edges
-                            Edge {
-                                node: c.to_position(self.width),
-                                cost: 1,
-                            }
-                        })
+fn get_edges(map: &Map<Position>) -> Vec<Vec<Edge>> {
+    map.into_iter()
+        .map(|square| {
+            square
+                .neighbors()
+                .iter()
+                .filter_map(|neighbor| {
+                    // Create an edge with weight 1 for anything that is actually a
+                    // valid edge
+                    square.data.can_travel_to(neighbor.data).then(|| Edge {
+                        node: neighbor.get_grid_index(),
+                        cost: 1,
                     })
-                    .collect();
+                })
+                .collect()
+        })
+        .collect()
+}
 
-                edges.push(self_edges)
-            }
+fn problem1(map: &Input) -> usize {
+    let mut start: usize = 0;
+    let mut finish: usize = 0;
+
+    // find both the start and finish squares
+    for square in map.into_iter() {
+        match square.data {
+            Position::Start => start = square.get_grid_index(),
+            Position::End => finish = square.get_grid_index(),
+            Position::Normal(_) => {}
         }
-
-        edges
     }
+    let edges = get_edges(map);
+    shortest_path(&edges, start, finish).unwrap()
 }
 
-#[derive(Copy, Clone, Eq, PartialEq)]
-struct State {
-    cost: usize,
-    position: usize,
-}
-
-impl Ord for State {
-    fn cmp(&self, other: &Self) -> Ordering {
-        other
-            .cost
-            .cmp(&self.cost)
-            .then_with(|| self.position.cmp(&other.position))
-    }
-}
-
-impl PartialOrd for State {
-    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
-        Some(self.cmp(other))
-    }
-}
-
-fn shortest_path(adj_list: &Vec<Vec<Edge>>, start: usize, goal: usize) -> Option<usize> {
-    let mut dist: Vec<_> = (0..adj_list.len()).map(|_| usize::MAX).collect();
-
-    let mut heap = BinaryHeap::new();
-
-    dist[start] = 0;
-    heap.push(State {
-        cost: 0,
-        position: start,
-    });
-
-    while let Some(State { cost, position }) = heap.pop() {
-        if position == goal {
-            return Some(cost);
-        }
-
-        if cost > dist[position] {
-            continue;
-        }
-
-        for edge in &adj_list[position] {
-            let next = State {
-                cost: cost + edge.cost,
-                position: edge.node,
-            };
-
-            if next.cost < dist[next.position] {
-                heap.push(next);
-                dist[next.position] = next.cost;
-            }
+fn problem2(map: &Input) -> usize {
+    // find the only finish square
+    let mut finish: usize = 0;
+    for square in map.into_iter() {
+        match square.data {
+            Position::End => finish = square.get_grid_index(),
+            _ => {}
         }
     }
 
-    None
-}
+    let edges = get_edges(map);
 
-fn problem1(input: &Input) -> usize {
-    let edges = input.map.to_edges();
-    shortest_path(&edges, input.start, input.finish).unwrap()
-}
-
-fn problem2(input: &Input) -> usize {
-    let edges = input.map.to_edges();
-
-    let mut potential_starts = Vec::new();
-    for x in 0..input.map.width {
-        for y in 0..input.map.height {
-            let position = input.map.get((x, y));
-            if position.is_potential_start() {
-                potential_starts.push((x, y).to_position(input.map.width));
-            }
-        }
-    }
-
-    potential_starts
-        .iter()
-        .filter_map(|start| shortest_path(&edges, *start, input.finish))
+    map.into_iter()
+        // only take the potential starting locations
+        .filter(|s| s.data.is_potential_start())
+        // find the shortest paths from a to z
+        .filter_map(|start| shortest_path(&edges, start.get_grid_index(), finish))
+        // get the shortest
         .min()
         .unwrap()
 }
