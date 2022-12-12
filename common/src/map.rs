@@ -66,6 +66,7 @@ impl<'a, T> IntoIterator for &'a Map<T> {
     }
 }
 
+#[derive(Debug)]
 pub struct MapSquare<'a, T> {
     map: &'a Map<T>,
     pub coords: Coord,

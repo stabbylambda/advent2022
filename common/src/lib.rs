@@ -3,6 +3,8 @@ use std::str::FromStr;
 
 pub mod dijkstra;
 pub mod map;
+pub mod nom;
+pub mod orthogonal;
 pub mod test;
 pub mod util;
 
