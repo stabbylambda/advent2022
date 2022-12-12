@@ -31,17 +31,27 @@ enum Position {
     Normal(char),
 }
 
+impl From<&Position> for u32 {
+    fn from(val: &Position) -> Self {
+        (match val {
+            Position::Start => 'a',
+            Position::End => 'z',
+            Position::Normal(c) => *c,
+        }) as u32
+    }
+}
 impl Position {
     fn can_travel_to(&self, dest: &Position) -> bool {
-        match (self, dest) {
-            (Position::Start, Position::Normal(c)) => *c == 'a' || *c == 'b',
-            (Position::Normal(c), Position::End) => *c == 'y' || *c == 'z',
-            (Position::Normal(c1), Position::Normal(c2)) => {
-                let dest_height = *c2 as u32;
-                let start_height = *c1 as u32;
+        let start_height: u32 = self.into();
+        let dest_height: u32 = dest.into();
 
-                dest_height <= start_height + 1
-            }
+        dest_height <= start_height + 1
+    }
+
+    fn is_potential_start(&self) -> bool {
+        match self {
+            Position::Start => true,
+            Position::Normal('a') => true,
             _ => false,
         }
     }
@@ -107,28 +117,25 @@ impl MapExt for Map<Position> {
             for x in 0..self.width {
                 let coord = (x, y);
                 let letter = self.get(coord);
-                edges.push(
-                    self.neighbors(coord)
-                        .iter()
-                        .filter_map(|c| {
-                            let neighbor = self.get(*c);
-                            let valid_edge = letter.can_travel_to(neighbor);
-
-                            if valid_edge {
-                                // all edges are 1 for this purpose because we already eliminated all the
-                                // invalid edges
-                                Some(Edge {
-                                    node: c.to_position(self.width),
-                                    cost: 1,
-                                })
-                            } else {
-                                None
+                let self_edges = self
+                    .neighbors(coord)
+                    .iter()
+                    .filter_map(|c| {
+                        letter.can_travel_to(self.get(*c)).then(|| {
+                            // all edges are 1 for this purpose because we already eliminated all the
+                            // invalid edges
+                            Edge {
+                                node: c.to_position(self.width),
+                                cost: 1,
                             }
                         })
-                        .collect(),
-                );
+                    })
+                    .collect();
+
+                edges.push(self_edges)
             }
         }
+
         edges
     }
 }
@@ -195,8 +202,24 @@ fn problem1(input: &Input) -> usize {
     shortest_path(&edges, input.start, input.finish).unwrap()
 }
 
-fn problem2(input: &Input) -> u32 {
-    todo!()
+fn problem2(input: &Input) -> usize {
+    let edges = input.map.to_edges();
+
+    let mut potential_starts = Vec::new();
+    for x in 0..input.map.width {
+        for y in 0..input.map.height {
+            let position = input.map.get((x, y));
+            if position.is_potential_start() {
+                potential_starts.push((x, y).to_position(input.map.width));
+            }
+        }
+    }
+
+    potential_starts
+        .iter()
+        .filter_map(|start| shortest_path(&edges, *start, input.finish))
+        .min()
+        .unwrap()
 }
 
 #[cfg(test)]
@@ -217,6 +240,6 @@ mod test {
         let input = get_raw_input();
         let input = parse(&input);
         let result = problem2(&input);
-        assert_eq!(result, 0)
+        assert_eq!(result, 29)
     }
 }
