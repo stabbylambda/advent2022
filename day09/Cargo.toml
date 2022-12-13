@@ -1,5 +1,5 @@
 [package]
-name = "day7"
+name = "day09"
 version = "0.1.0"
 edition = "2021"
 
@@ -8,4 +8,3 @@ edition = "2021"
 [dependencies]
 common = { path = "../common"}
 nom = "7.1.1"
-petgraph = "0.6.2"
