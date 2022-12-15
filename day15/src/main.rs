@@ -33,7 +33,7 @@ struct Sensor {
     dist: i64,
 }
 
-fn parse_coord(input: &str) -> IResult<&str, (i64, i64)> {
+fn parse_coord(input: &str) -> IResult<&str, Point> {
     separated_pair(
         preceded(tag("x="), nom_i64),
         tag(", "),
@@ -42,7 +42,7 @@ fn parse_coord(input: &str) -> IResult<&str, (i64, i64)> {
 }
 
 fn parse(input: &str) -> Input {
-    let result: IResult<&str, Vec<((i64, i64), (i64, i64))>> = separated_list1(
+    let result: IResult<&str, Vec<(Point, Point)>> = separated_list1(
         newline,
         preceded(
             tag("Sensor at "),
@@ -75,31 +75,17 @@ impl PointExt for Point {
     }
 }
 
-fn get_sensor_coverage(s: &Sensor, row_filter: Option<i64>) -> Vec<(i64, (i64, i64))> {
+fn get_sensor_coverage(s: &Sensor, row: i64) -> (i64, i64) {
     let &Sensor { x: sx, y: sy, dist } = s;
-    let mut coverage_ranges: Vec<(i64, (i64, i64))> = vec![];
-    let start_y = sy - dist;
-    let end_y = sy + dist;
+    // get the vertical distance between these two points
+    let y_distance = row.abs_diff(sy);
+    // the horizontal difference is the rest of the manhattan distance
+    let remaining_x_distance = y_distance.abs_diff(dist as u64);
 
-    for row in start_y..=end_y {
-        let generate_row = match row_filter {
-            Some(rf) => rf == row,
-            None => true,
-        };
+    let start_x = sx - (remaining_x_distance as i64);
+    let end_x = sx + (remaining_x_distance as i64);
 
-        if generate_row {
-            // get the vertical distance between these two points
-            let y_distance = row.abs_diff(sy);
-            // the horizontal difference is the rest of the manhattan distance
-            let remaining_x_distance = y_distance.abs_diff(dist as u64);
-
-            let start_x = sx - (remaining_x_distance as i64);
-            let end_x = sx + (remaining_x_distance as i64);
-
-            coverage_ranges.push((row, (start_x, end_x)))
-        }
-    }
-    coverage_ranges
+    (start_x, end_x)
 }
 
 fn get_contiguous_ranges(ranges: &mut Vec<(i64, i64)>) -> Vec<(i64, i64)> {
@@ -140,23 +126,53 @@ fn problem1(input: &Input, row: i64) -> i64 {
             let y_in_range = y - dist <= row && row <= y + dist;
             y_in_range.then(|| s)
         })
-        .flat_map(|s| get_sensor_coverage(s, Some(row)))
-        .map(|(_a, b)| b)
+        .map(|s| get_sensor_coverage(s, row))
         .collect();
 
+    // smash the ranges together and get the sum of the distances between them
     let count = get_contiguous_ranges(&mut coverages)
         .iter()
         .map(|&(start, end)| start.abs_diff(end))
         .sum::<u64>() as i64;
 
+    // I'm honestly not sure what I need the 1 for, but I need it...so...
     let total: i64 = count - existing_beacons + 1;
     total
 }
 
+/* There is for sure a much faster way of doing this. I'm probably doing too many allocations of
+intermediate vectors and too many double iterations. But I got the right answer and I think I may not care anymore.
+*/
 fn problem2(input: &Input, max_search_area: i64) -> i64 {
-    let (px, py) = (0, 0);
+    let (x, y) = (0..max_search_area)
+        .find_map(|row| {
+            // find the coverages on this particular row
+            let mut coverages: Vec<(i64, i64)> = input
+                .sensors
+                .iter()
+                .filter_map(|s| {
+                    let Sensor { x: _, y, dist } = s;
+                    // only consider the beacons within manhattan distance of this row
+                    let y_in_range = y - dist <= row && row <= y + dist;
+                    y_in_range.then(|| s)
+                })
+                .map(|s| get_sensor_coverage(s, row))
+                .collect();
 
-    let tuning_frequency = (px * 4_000_000) + py;
+            let ranges = get_contiguous_ranges(&mut coverages);
+            // smash the ranges together and get the sum of the distances between them
+            let count = ranges.len();
+            if count > 1 {
+                // the hole in between these two ranges is the x value of the beacon
+                let x = ranges[0].1 + 1;
+                Some((x, row))
+            } else {
+                None
+            }
+        })
+        .unwrap();
+
+    let tuning_frequency = (x * 4_000_000) + y;
 
     tuning_frequency
 }
