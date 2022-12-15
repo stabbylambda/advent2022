@@ -9,33 +9,32 @@ pub mod cavemap;
 
 fn main() {
     let input = get_raw_input();
-    let mut input = parse(&input);
+    let input = parse(&input);
 
-    let score = problem1(&mut input);
+    let score = problem1(&input);
     println!("problem 1 score: {score}");
 
     let score = problem2(&input);
     println!("problem 2 score: {score}");
 }
 
-type Input = cavemap::CaveMap;
+type Input = Vec<Path>;
 
 fn parse(input: &str) -> Input {
-    let result: IResult<&str, Input> = map(
-        separated_list1(newline, map(separated_list1(tag(" -> "), coord), Path::new)),
-        CaveMap::new,
-    )(input);
+    let result: IResult<&str, Input> =
+        separated_list1(newline, map(separated_list1(tag(" -> "), coord), Path::new))(input);
 
     result.unwrap().1
 }
 
 #[derive(PartialEq, Eq)]
 enum SandResult {
+    Clogged,
     Abyss,
     Settled,
 }
 
-fn simulate_sand(input: &mut Input) -> SandResult {
+fn simulate_sand(input: &mut CaveMap) -> SandResult {
     // every sand particle starts at the source
     let (mut x, mut y) = input.source;
 
@@ -59,26 +58,35 @@ fn simulate_sand(input: &mut Input) -> SandResult {
         } else {
             // we can't move down, diagonal left, or diagonal right so we settle here
             input.map.set((x, y), Tile::Sand);
-            return SandResult::Settled;
+            return if input.map.get(input.source).data == &Tile::Sand {
+                SandResult::Clogged
+            } else {
+                SandResult::Settled
+            };
         }
     }
     // we're off the map, so return Abyss
     SandResult::Abyss
 }
 
-fn problem1(input: &mut Input) -> u32 {
+fn problem1(input: &Input) -> u32 {
     let mut grains = 0;
-
-    while let SandResult::Settled = simulate_sand(input) {
+    let mut map = CaveMap::new(input, false);
+    while simulate_sand(&mut map) != SandResult::Abyss {
         grains += 1;
     }
 
-    dbg!(&input.map);
     grains
 }
 
-fn problem2(_input: &Input) -> u32 {
-    todo!()
+fn problem2(input: &Input) -> u32 {
+    let mut grains = 0;
+    let mut map = CaveMap::new(input, true);
+    while simulate_sand(&mut map) != SandResult::Clogged {
+        grains += 1;
+    }
+
+    grains + 1
 }
 
 #[cfg(test)]
@@ -89,8 +97,8 @@ mod test {
     #[test]
     fn first() {
         let input = get_raw_input();
-        let mut input = parse(&input);
-        let result = problem1(&mut input);
+        let input = parse(&input);
+        let result = problem1(&input);
         assert_eq!(result, 24)
     }
 
@@ -99,6 +107,6 @@ mod test {
         let input = get_raw_input();
         let input = parse(&input);
         let result = problem2(&input);
-        assert_eq!(result, 0)
+        assert_eq!(result, 93)
     }
 }
