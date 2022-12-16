@@ -1,5 +1,3 @@
-use std::collections::HashSet;
-
 use common::get_raw_input;
 use nom::{
     bytes::complete::tag,
@@ -24,7 +22,19 @@ fn main() {
 #[derive(Debug)]
 struct Input {
     sensors: Vec<Sensor>,
-    beacons: HashSet<Point>,
+}
+
+impl Input {
+    fn get_coverages(&self, row: i64) -> Vec<(i64, i64)> {
+        let mut coverages: Vec<(i64, i64)> = self
+            .sensors
+            .par_iter()
+            .filter_map(|s| s.get_coverage(row))
+            .collect();
+
+        coverages.sort();
+        coverages
+    }
 }
 
 fn parse_coord(input: &str) -> IResult<&str, Point> {
@@ -53,9 +63,8 @@ fn parse(input: &str) -> Input {
             dist: s.manhattan(&b),
         })
         .collect();
-    let beacons = pairs.iter().map(|(_s, b)| b.clone()).collect();
 
-    Input { sensors, beacons }
+    Input { sensors }
 }
 
 type Point = (i64, i64);
@@ -96,10 +105,9 @@ impl Sensor {
     }
 }
 
-fn get_contiguous_ranges(ranges: &mut Vec<(i64, i64)>) -> Vec<(i64, i64)> {
-    // order by x
-    ranges.sort();
-
+fn get_contiguous_ranges(ranges: &[(i64, i64)]) -> Vec<(i64, i64)> {
+    // there is likely a better representation for this than a vec, but the
+    // acc will only ever have 0, 1, or 2 ranges
     ranges.iter().fold(vec![], |mut acc, &r @ (ra, rb)| {
         // push the first item on the stack
         match acc.pop() {
@@ -119,42 +127,31 @@ fn get_contiguous_ranges(ranges: &mut Vec<(i64, i64)>) -> Vec<(i64, i64)> {
 }
 
 fn problem1(input: &Input, row: i64) -> i64 {
-    // count the beacons on the row
-    let existing_beacons = input.beacons.iter().filter(|(_, by)| *by == row).count() as i64;
-
-    // find the coverages on this particular row
-    let mut coverages: Vec<(i64, i64)> = input
-        .sensors
-        .iter()
-        .filter_map(|s| s.get_coverage(row))
-        .collect();
+    let coverages = input.get_coverages(row);
 
     // smash the ranges together and get the sum of the distances between them
-    let count = get_contiguous_ranges(&mut coverages)
-        .iter()
-        .map(|&(start, end)| start.abs_diff(end))
-        .sum::<u64>() as i64;
+    let &(start, end) = get_contiguous_ranges(&coverages).first().unwrap();
+    let count = start.abs_diff(end) as i64;
 
-    // I'm honestly not sure what I need the 1 for, but I need it...so...
-    let total: i64 = count - existing_beacons + 1;
-    total
+    count
 }
 
-/* There is for sure a much faster way of doing this. I'm probably doing too many allocations of
-intermediate vectors and too many double iterations. But I got the right answer and I think I may not care anymore.
+/* I completely rewrote the implementation between problem 1 and 2. My initial
+implementation was to generate a set of points which worked on small inputs, and even
+on the big input, it "worked" for a single row.
+
+The better implementation only concerns itself with merging ranges and then I sped that
+up by adding rayon to make things parallel. Rayon might be cheating a bit, but the
+sequential program was relatively fast even without it...and rayon is super easy to add.
 */
 fn problem2(input: &Input, max_search_area: i64) -> i64 {
     let (x, y) = (0..max_search_area)
         .into_par_iter()
         .find_map_any(|row| {
             // find the coverages on this particular row
-            let mut coverages: Vec<(i64, i64)> = input
-                .sensors
-                .iter()
-                .filter_map(|s| s.get_coverage(row))
-                .collect();
+            let coverages = input.get_coverages(row);
 
-            let ranges = get_contiguous_ranges(&mut coverages);
+            let ranges = get_contiguous_ranges(&coverages);
             (ranges.len() > 1).then(|| {
                 // the hole in between these two ranges is the x value of the beacon
                 let x = ranges[0].1 + 1;
