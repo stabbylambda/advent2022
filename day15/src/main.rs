@@ -26,13 +26,6 @@ struct Input {
     beacons: HashSet<Point>,
 }
 
-#[derive(Debug)]
-struct Sensor {
-    x: i64,
-    y: i64,
-    dist: i64,
-}
-
 fn parse_coord(input: &str) -> IResult<&str, Point> {
     separated_pair(
         preceded(tag("x="), nom_i64),
@@ -75,41 +68,55 @@ impl PointExt for Point {
     }
 }
 
-fn get_sensor_coverage(s: &Sensor, row: i64) -> (i64, i64) {
-    let &Sensor { x: sx, y: sy, dist } = s;
-    // get the vertical distance between these two points
-    let y_distance = row.abs_diff(sy);
-    // the horizontal difference is the rest of the manhattan distance
-    let remaining_x_distance = y_distance.abs_diff(dist as u64);
+#[derive(Debug)]
+struct Sensor {
+    x: i64,
+    y: i64,
+    dist: i64,
+}
 
-    let start_x = sx - (remaining_x_distance as i64);
-    let end_x = sx + (remaining_x_distance as i64);
+impl Sensor {
+    fn get_coverage(&self, row: i64) -> Option<(i64, i64)> {
+        let &Sensor { x, y, dist } = self;
+        // only consider the rows within manhattan distance of this sensor
+        let y_in_range = y - dist <= row && row <= y + dist;
 
-    (start_x, end_x)
+        y_in_range.then(|| {
+            // get the vertical distance between these two points
+            let y_distance = row.abs_diff(y);
+            // the horizontal difference is the rest of the manhattan distance
+            let remaining_x_distance = y_distance.abs_diff(dist as u64);
+
+            let start_x = x - (remaining_x_distance as i64);
+            let end_x = x + (remaining_x_distance as i64);
+
+            (start_x, end_x)
+        })
+    }
 }
 
 fn get_contiguous_ranges(ranges: &mut Vec<(i64, i64)>) -> Vec<(i64, i64)> {
     // order by x
     ranges.sort();
 
-    let merged: Vec<(i64, i64)> = ranges.iter().fold(Vec::<(i64, i64)>::new(), |mut acc, r| {
-        // push the first item on the stack
-        match acc.pop() {
-            Some(previous) => {
-                if r.0 <= previous.1 {
-                    acc.push((previous.0, r.1.max(previous.1)))
-                } else {
-                    acc.push(previous);
-                    acc.push(*r);
+    ranges
+        .iter()
+        .fold(Vec::<(i64, i64)>::new(), |mut acc, &r @ (ra, rb)| {
+            // push the first item on the stack
+            match acc.pop() {
+                Some(previous @ (pa, pb)) => {
+                    if ra <= pb {
+                        acc.push((pa, rb.max(pb)))
+                    } else {
+                        acc.push(previous);
+                        acc.push(r);
+                    }
                 }
-            }
-            None => acc.push(*r),
-        };
+                None => acc.push(r),
+            };
 
-        acc
-    });
-
-    merged
+            acc
+        })
 }
 
 fn problem1(input: &Input, row: i64) -> i64 {
@@ -120,13 +127,7 @@ fn problem1(input: &Input, row: i64) -> i64 {
     let mut coverages: Vec<(i64, i64)> = input
         .sensors
         .iter()
-        .filter_map(|s| {
-            let Sensor { x: _, y, dist } = s;
-            // only consider the beacons within manhattan distance of this row
-            let y_in_range = y - dist <= row && row <= y + dist;
-            y_in_range.then(|| s)
-        })
-        .map(|s| get_sensor_coverage(s, row))
+        .filter_map(|s| s.get_coverage(row))
         .collect();
 
     // smash the ranges together and get the sum of the distances between them
@@ -146,34 +147,26 @@ intermediate vectors and too many double iterations. But I got the right answer 
 fn problem2(input: &Input, max_search_area: i64) -> i64 {
     let (x, y) = (0..max_search_area)
         .find_map(|row| {
+            if row % 100_000 == 0 {
+                println!("on row {row}");
+            }
             // find the coverages on this particular row
             let mut coverages: Vec<(i64, i64)> = input
                 .sensors
                 .iter()
-                .filter_map(|s| {
-                    let Sensor { x: _, y, dist } = s;
-                    // only consider the beacons within manhattan distance of this row
-                    let y_in_range = y - dist <= row && row <= y + dist;
-                    y_in_range.then(|| s)
-                })
-                .map(|s| get_sensor_coverage(s, row))
+                .filter_map(|s| s.get_coverage(row))
                 .collect();
 
             let ranges = get_contiguous_ranges(&mut coverages);
-            // smash the ranges together and get the sum of the distances between them
-            let count = ranges.len();
-            if count > 1 {
+            (ranges.len() > 1).then(|| {
                 // the hole in between these two ranges is the x value of the beacon
                 let x = ranges[0].1 + 1;
-                Some((x, row))
-            } else {
-                None
-            }
+                (x, row)
+            })
         })
         .unwrap();
 
     let tuning_frequency = (x * 4_000_000) + y;
-
     tuning_frequency
 }
 
