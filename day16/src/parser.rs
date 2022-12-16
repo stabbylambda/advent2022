@@ -10,7 +10,7 @@ use nom::{
     IResult,
 };
 
-use crate::{Caves, Input, Valve};
+use crate::{Input, Valve};
 fn parse_valve(input: &str) -> IResult<&str, (&str, u32)> {
     separated_pair(
         preceded(tag("Valve "), alpha1),
@@ -45,7 +45,7 @@ pub(crate) fn parse(input: &str) -> Input {
                 .map(|(idx, (name, _, _))| (*name, idx))
                 .collect();
 
-            let v: Vec<Valve> = valves
+            let valves: Vec<Valve> = valves
                 .iter()
                 .enumerate()
                 .map(|(id, (name, flow_rate, neighbor_strings))| {
@@ -59,10 +59,7 @@ pub(crate) fn parse(input: &str) -> Input {
                 })
                 .collect();
 
-            crate::Caves {
-                valves: v,
-                aa_index: indexes["AA"],
-            }
+            crate::Caves::new(valves, indexes["AA"])
         },
     )(input);
 
