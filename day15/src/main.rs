@@ -8,6 +8,7 @@ use nom::{
     sequence::{preceded, separated_pair},
     IResult,
 };
+use rayon::prelude::*;
 
 fn main() {
     let input = get_raw_input();
@@ -99,24 +100,22 @@ fn get_contiguous_ranges(ranges: &mut Vec<(i64, i64)>) -> Vec<(i64, i64)> {
     // order by x
     ranges.sort();
 
-    ranges
-        .iter()
-        .fold(Vec::<(i64, i64)>::new(), |mut acc, &r @ (ra, rb)| {
-            // push the first item on the stack
-            match acc.pop() {
-                Some(previous @ (pa, pb)) => {
-                    if ra <= pb {
-                        acc.push((pa, rb.max(pb)))
-                    } else {
-                        acc.push(previous);
-                        acc.push(r);
-                    }
+    ranges.iter().fold(vec![], |mut acc, &r @ (ra, rb)| {
+        // push the first item on the stack
+        match acc.pop() {
+            Some(previous @ (pa, pb)) => {
+                if ra <= pb {
+                    acc.push((pa, rb.max(pb)))
+                } else {
+                    acc.push(previous);
+                    acc.push(r);
                 }
-                None => acc.push(r),
-            };
+            }
+            None => acc.push(r),
+        };
 
-            acc
-        })
+        acc
+    })
 }
 
 fn problem1(input: &Input, row: i64) -> i64 {
@@ -146,10 +145,8 @@ intermediate vectors and too many double iterations. But I got the right answer 
 */
 fn problem2(input: &Input, max_search_area: i64) -> i64 {
     let (x, y) = (0..max_search_area)
-        .find_map(|row| {
-            if row % 100_000 == 0 {
-                println!("on row {row}");
-            }
+        .into_par_iter()
+        .find_map_any(|row| {
             // find the coverages on this particular row
             let mut coverages: Vec<(i64, i64)> = input
                 .sensors
