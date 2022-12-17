@@ -1,8 +1,6 @@
-use std::collections::BTreeSet;
-
-use ndarray::prelude::*;
-
 use common::get_raw_input;
+use ndarray::prelude::*;
+use std::collections::BTreeSet;
 
 pub mod parser;
 
@@ -23,7 +21,6 @@ type ValveId = usize;
 #[derive(Debug)]
 struct Valve {
     id: ValveId,
-    name: String,
     flow_rate: u32,
     neighbors: Vec<usize>,
 }
@@ -199,14 +196,6 @@ fn problem2(caves: &Input) -> u32 {
     }
 
     answer
-}
-
-fn print_path(path: &Path, score: u32) {
-    let path_str: Vec<&str> = path.iter().map(|x| x.name.as_str()).collect();
-    let path_str = path_str.join(" -> ");
-    if path_str.starts_with("DD") {
-        println!("{path_str} = {score}");
-    }
 }
 
 #[cfg(test)]
