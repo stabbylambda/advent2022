@@ -48,7 +48,7 @@ pub(crate) fn parse(input: &str) -> Input {
             let valves: Vec<Valve> = valves
                 .iter()
                 .enumerate()
-                .map(|(id, (_, flow_rate, neighbor_strings))| {
+                .map(|(id, (name, flow_rate, neighbor_strings))| {
                     let neighbors = neighbor_strings.iter().map(|n| indexes[n]).collect();
                     Valve {
                         id,
