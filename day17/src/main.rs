@@ -1,4 +1,5 @@
 use std::{
+    collections::HashMap,
     fmt::Display,
     ops::{BitAnd, BitOrAssign, Range},
 };
@@ -20,7 +21,7 @@ fn main() {
 
 type Input = Vec<Jet>;
 
-#[derive(Debug)]
+#[derive(Debug, PartialEq, Eq, Hash)]
 enum Jet {
     Left,
     Right,
@@ -36,7 +37,7 @@ fn parse(input: &str) -> Input {
     result.unwrap().1
 }
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum RockKind {
     Horizontal,
     Plus,
@@ -123,18 +124,15 @@ impl Rock {
             Jet::Left if !on_left_wall => &new_bits.shift_left(1),
             Jet::Right if !on_right_wall => &new_bits.shift_right(1),
             _ => {
-                println!("  {height} Jet of gas pushes rock {jet:?}, but nothing happens (wall)");
                 return;
             }
         };
 
         let rock_collision = tower.collision(&new_bits, height);
         if rock_collision {
-            println!("  {height} Jet of gas pushes rock {jet:?}, but nothing happens (rock)");
             return;
         }
 
-        println!("  {height} Jet of gas pushes rock {jet:?}");
         self.bits = new_bits;
     }
 }
@@ -226,47 +224,79 @@ impl Display for Tower {
 }
 
 fn problem1(input: &Input) -> usize {
-    let limit = 2022;
-    let rocks = RockKind::all_kinds().into_iter().cycle().take(limit);
+    problem(input, 2022)
+}
+fn problem(input: &Input, limit: usize) -> usize {
+    let mut checkpoints: HashMap<(usize, usize, u8), (usize, usize)> = HashMap::new();
+
+    let mut rocks = RockKind::all_kinds().into_iter().enumerate().cycle();
     let mut jets = input.iter().cycle();
     let mut tower = Tower::new();
+    let mut drop_count = 0;
+    let mut jet_index = 0;
+    let mut skipped_height = None;
 
-    for kind in rocks {
-        // println!("Tower height = {}, spawning {kind:?}", tower.get_height());
+    while drop_count < limit {
+        let (rock_index, kind) = rocks.next().unwrap();
         let mut rock: Rock = kind.into();
         let mut height = tower.grow();
+        let original_height = height;
 
         loop {
             // blow the rock one way or another first
+            jet_index = (jet_index + 1) % input.len();
             let jet = jets.next().unwrap();
+
             rock.blow(jet, &tower, height);
 
             if height == 0 || tower.collision(&rock.bits, height - 1) {
                 tower.merge(&mut rock, height);
+                drop_count += 1;
+                if original_height > 1000 {
+                    let top = &tower.bits[tower.get_row_range(tower.get_height() - 1)];
+                    let top: u8 = top.load();
+                    if let Some((prev_height, prev_drops)) = checkpoints.insert(
+                        (rock_index, jet_index, top),
+                        (tower.get_height(), drop_count),
+                    ) {
+                        let cycle_size = prev_drops.abs_diff(drop_count);
+                        let skip_count = (limit - drop_count) / cycle_size;
+                        let skipped_drops = skip_count * cycle_size;
+
+                        let cycle_height = prev_height.abs_diff(tower.get_height());
+                        skipped_height = Some(skip_count * cycle_height);
+
+                        println!(
+                            "found cycle on drop {drop_count}. Skipping {skip_count} cycles of {cycle_size} size for {skipped_drops}"
+                        );
+
+                        drop_count += skipped_drops;
+
+                        // don't let it find a new cycle on the next line, just blow away everything
+                        checkpoints.clear();
+                    }
+                }
                 break;
             }
 
-            // println!("  Rock falls 1 unit");
             height -= 1;
         }
-
-        // println!("{tower}");
     }
 
-    tower.get_height()
+    tower.get_height() + skipped_height.unwrap_or(0)
 }
 
-fn problem2(_input: &Input) -> u32 {
-    todo!()
+fn problem2(input: &Input) -> usize {
+    problem(input, 1_000_000_000_000)
 }
 
 #[cfg(test)]
 mod test {
-    use bitvec::vec::BitVec;
     use common::test::get_raw_input;
 
     use crate::{parse, problem1, problem2, RockKind, Tower};
     #[test]
+    #[ignore]
     fn first() {
         let input = get_raw_input();
         let input = parse(&input);
@@ -275,11 +305,10 @@ mod test {
     }
 
     #[test]
-    #[ignore]
     fn second() {
         let input = get_raw_input();
         let input = parse(&input);
         let result = problem2(&input);
-        assert_eq!(result, 0)
+        assert_eq!(result, 1514285714288)
     }
 }
