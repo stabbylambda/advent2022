@@ -17,10 +17,7 @@ fn main() {
     println!("problem 2 score: {score}");
 }
 
-struct Grid {
-    grid: ArrayBase<OwnedRepr<u32>, Dim<[usize; 3]>>,
-}
-type Input = Grid;
+type Input = Vec<(usize, usize, usize)>;
 
 fn parse(input: &str) -> Input {
     let result: IResult<&str, Vec<(usize, usize, usize)>> = separated_list0(
@@ -32,75 +29,135 @@ fn parse(input: &str) -> Input {
         )),
     )(input);
 
-    let result = result.unwrap().1;
-
-    points_to_grid(&result[..])
+    result.unwrap().1
 }
 
-const AIR: u32 = 0;
-const LAVA: u32 = 1;
-const VACCUUM: u32 = 2;
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum Cell {
+    Air,
+    Lava,
+    Vacuum,
+}
 
-fn points_to_grid(points: &[(usize, usize, usize)]) -> Grid {
-    let mut grid = Array3::<u32>::zeros((30, 30, 30));
-    for &(x, y, z) in points {
-        grid[[x + 1, y + 1, z + 1]] = LAVA;
+struct Grid {
+    grid: ArrayBase<OwnedRepr<Cell>, Dim<[usize; 3]>>,
+}
+
+impl From<&Vec<(usize, usize, usize)>> for Grid {
+    fn from(value: &Vec<(usize, usize, usize)>) -> Self {
+        Grid::from_points(&value)
+    }
+}
+
+impl Grid {
+    const SIZE: usize = 24;
+    fn from_points(points: &[(usize, usize, usize)]) -> Grid {
+        let mut grid = Array3::<Cell>::from_elem((Self::SIZE, Self::SIZE, Self::SIZE), Cell::Air);
+        for &(x, y, z) in points {
+            // push them up by one so we can get the edges correctly
+            grid[[x + 1, y + 1, z + 1]] = Cell::Lava;
+        }
+
+        Grid { grid }
     }
 
-    Grid { grid }
-}
+    // leave a ring of air around the grid
+    fn set_vacuum(&mut self) {
+        for x in 1..Self::SIZE {
+            for y in 1..Self::SIZE {
+                for z in 1..Self::SIZE {
+                    if self.grid[[x, y, z]] == Cell::Air {
+                        self.grid[[x, y, z]] = Cell::Vacuum;
+                    }
+                }
+            }
+        }
+    }
+    fn get_surface_area(&self) -> usize {
+        let mut total_empty = 0;
+        for x in 1..Self::SIZE {
+            for y in 1..Self::SIZE {
+                for z in 1..Self::SIZE {
+                    if self.grid[[x, y, z]] == Cell::Lava {
+                        // this is a voxel, check all its neighbors
+                        total_empty += [
+                            [x + 1, y, z],
+                            [x - 1, y, z],
+                            [x, y + 1, z],
+                            [x, y - 1, z],
+                            [x, y, z + 1],
+                            [x, y, z - 1],
+                        ]
+                        .iter()
+                        .filter(|&&p| self.grid[p] == Cell::Air)
+                        .count();
+                    }
+                }
+            }
+        }
+        total_empty
+    }
 
-fn problem1(input: &Input) -> usize {
-    let mut total_empty = 0;
-    for x in 1..30 {
-        for y in 1..30 {
-            for z in 1..30 {
-                if input.grid[[x, y, z]] == LAVA {
-                    // this is a voxel, check all its neighbors
-                    let neighbors = [
-                        [x + 1, y, z],
-                        [x - 1, y, z],
-                        [x, y + 1, z],
-                        [x, y - 1, z],
-                        [x, y, z + 1],
-                        [x, y, z - 1],
-                    ];
+    fn flood_fill(&mut self) {
+        self.set_vacuum();
+        let mut updated = true;
+        while updated {
+            updated = false;
+            for x in 1..Self::SIZE - 1 {
+                for y in 1..Self::SIZE - 1 {
+                    for z in 1..Self::SIZE - 1 {
+                        // check if this cell is a vacuum and any of its neighbors are air
+                        if self.grid[[x, y, z]] == Cell::Vacuum {
+                            let any_air_neighbors = [
+                                [x + 1, y, z],
+                                [x - 1, y, z],
+                                [x, y + 1, z],
+                                [x, y - 1, z],
+                                [x, y, z + 1],
+                                [x, y, z - 1],
+                            ]
+                            .iter()
+                            .any(|&p| self.grid[p] == Cell::Air);
 
-                    for neighbor in neighbors {
-                        if input.grid[neighbor] == AIR {
-                            total_empty += 1;
+                            if any_air_neighbors {
+                                updated = true;
+                                self.grid[[x, y, z]] = Cell::Air;
+                            }
                         }
                     }
                 }
             }
         }
     }
-
-    total_empty
 }
 
-fn problem2(_input: &Input) -> u32 {
-    todo!()
+fn problem1(input: &Input) -> usize {
+    let grid: Grid = input.into();
+    grid.get_surface_area()
+}
+
+fn problem2(input: &Input) -> usize {
+    let mut grid: Grid = input.into();
+    grid.flood_fill();
+    grid.get_surface_area()
 }
 
 #[cfg(test)]
 mod test {
     use common::test::get_raw_input;
 
-    use crate::{parse, points_to_grid, problem1, problem2};
+    use crate::{parse, problem1, problem2};
     #[test]
     fn supermini() {
         let v = vec![(1, 1, 1)];
-        let g = points_to_grid(&v);
-        let result = problem1(&g);
+        let result = problem1(&v);
         assert_eq!(result, 6)
     }
 
     #[test]
     fn mini() {
         let v = vec![(1, 1, 1), (2, 1, 1)];
-        let g = points_to_grid(&v);
-        let result = problem1(&g);
+        let result = problem1(&v);
         assert_eq!(result, 10)
     }
     #[test]
@@ -112,7 +169,6 @@ mod test {
     }
 
     #[test]
-    #[ignore]
     fn second() {
         let input = get_raw_input();
         let input = parse(&input);
