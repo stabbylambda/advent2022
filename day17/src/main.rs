@@ -46,9 +46,9 @@ enum RockKind {
     Square,
 }
 
-impl Into<Rock> for RockKind {
-    fn into(self) -> Rock {
-        let rock = match self {
+impl From<RockKind> for Rock {
+    fn from(val: RockKind) -> Self {
+        let rock = match val {
             // I could calculate these as hex values, but I like the visual representation
             RockKind::Horizontal => bitvec![u8, Lsb0;
                 0,0,1,1,1,1,0,
@@ -148,7 +148,7 @@ impl Display for Rock {
             }
             writeln!(f, "|")?;
         }
-        writeln!(f, "")
+        writeln!(f)
     }
 }
 
@@ -195,9 +195,9 @@ impl Tower {
 
     fn collision(&self, rock: &BitSlice<u8>, height: usize) -> bool {
         let r = self.get_tower_slice(height);
-        let result = self.bits[r].to_bitvec().bitand(&rock[..]);
-        let x = result.any();
-        x
+        let result = self.bits[r].to_bitvec().bitand(rock);
+
+        result.any()
     }
 
     fn merge(&mut self, rock: &mut Rock, height: usize) {
@@ -294,7 +294,7 @@ fn problem2(input: &Input) -> usize {
 mod test {
     use common::test::get_raw_input;
 
-    use crate::{parse, problem1, problem2, RockKind, Tower};
+    use crate::{parse, problem1, problem2};
     #[test]
     #[ignore]
     fn first() {

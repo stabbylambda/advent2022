@@ -43,7 +43,7 @@ fn mix(numbers: &Input, cycles: u64) -> Vec<i64> {
 
             // remove and re-insert the value
             let number = numbers.remove(current_index);
-            numbers.insert(new_index as usize, number);
+            numbers.insert(new_index, number);
         }
     }
 

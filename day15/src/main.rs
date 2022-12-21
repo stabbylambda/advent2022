@@ -131,9 +131,8 @@ fn problem1(input: &Input, row: i64) -> i64 {
 
     // smash the ranges together and get the sum of the distances between them
     let &(start, end) = get_contiguous_ranges(&coverages).first().unwrap();
-    let count = start.abs_diff(end) as i64;
 
-    count
+    start.abs_diff(end) as i64
 }
 
 /* I completely rewrote the implementation between problem 1 and 2. My initial
@@ -160,8 +159,7 @@ fn problem2(input: &Input, max_search_area: i64) -> i64 {
         })
         .unwrap();
 
-    let tuning_frequency = (x * 4_000_000) + y;
-    tuning_frequency
+    (x * 4_000_000) + y
 }
 
 #[cfg(test)]

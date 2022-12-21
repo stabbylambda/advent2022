@@ -61,7 +61,7 @@ impl Ord for Packet {
     fn cmp(&self, other: &Self) -> std::cmp::Ordering {
         match (self, other) {
             (Packet::Scalar(x), Packet::Scalar(y)) => x.cmp(y),
-            _ => self.as_slice().cmp(&other.as_slice()),
+            _ => self.as_slice().cmp(other.as_slice()),
         }
     }
 }
@@ -92,7 +92,7 @@ fn problem1(pairs: &Input) -> usize {
         .iter()
         .enumerate()
         .fold(0, |acc, (idx, (left, right))| {
-            acc + (left <= right).then(|| idx + 1).unwrap_or(0)
+            acc + if left <= right { idx + 1 } else { 0 }
         })
 }
 
@@ -108,9 +108,11 @@ fn problem2(pairs: &Input) -> usize {
     signals.sort();
 
     signals.iter().enumerate().fold(1, |acc, (idx, x)| {
-        acc * (*x == divider_2 || *x == divider_6)
-            .then(|| idx + 1)
-            .unwrap_or(1)
+        acc * if *x == divider_2 || *x == divider_6 {
+            idx + 1
+        } else {
+            1
+        }
     })
 }
 

@@ -46,7 +46,7 @@ impl Blueprint {
             }
         }
 
-        return result;
+        result
     }
 }
 

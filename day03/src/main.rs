@@ -57,7 +57,7 @@ fn prioritize(c: &char) -> u32 {
 fn get_rucksacks(lines: &[String]) -> Vec<Rucksack> {
     lines
         .iter()
-        .map(|s| Rucksack::new(&s))
+        .map(|s| Rucksack::new(s))
         .collect::<Vec<Rucksack>>()
 }
 

@@ -43,7 +43,7 @@ const INTERESTING: [u32; 6] = [20, 60, 100, 140, 180, 220];
 fn problem1(lines: &Input) -> i32 {
     let mut signals = vec![];
 
-    let mut cpu = CPU::new(lines);
+    let mut cpu = Cpu::new(lines);
     cpu.execute(|CycleResult { cycle, register_x }| {
         if INTERESTING.contains(&cycle) {
             let signal_strength = (cycle as i32) * register_x;
@@ -55,15 +55,15 @@ fn problem1(lines: &Input) -> i32 {
 }
 
 #[derive(Debug)]
-struct CRT {
+struct Crt {
     pixels: [bool; 240],
 }
 
-impl CRT {
+impl Crt {
     fn draw(&mut self, CycleResult { cycle, register_x }: CycleResult) {
         let current = (cycle - 1) % 40;
-        let sprite_positions: Vec<i32> = (register_x - 1..=register_x + 1).collect();
-        let on = sprite_positions.contains(&(current as i32));
+
+        let on = (register_x - 1..=register_x + 1).any(|x| x == (current as i32));
         self.pixels[(cycle - 1) as usize] = on;
     }
 
@@ -86,8 +86,8 @@ impl CRT {
 }
 
 fn problem2(lines: &Input) -> String {
-    let mut cpu = CPU::new(lines);
-    let mut crt = CRT {
+    let mut cpu = Cpu::new(lines);
+    let mut crt = Crt {
         pixels: [false; 240],
     };
 
@@ -98,7 +98,7 @@ fn problem2(lines: &Input) -> String {
     crt.get_message()
 }
 
-struct CPU<'a> {
+struct Cpu<'a> {
     cycle: u32,
     register_x: i32,
     instructions: &'a [Instruction],
@@ -109,16 +109,16 @@ struct CycleResult {
     register_x: i32,
 }
 
-impl<'a> CPU<'a> {
-    fn new(instructions: &[Instruction]) -> CPU {
-        CPU {
+impl<'a> Cpu<'a> {
+    fn new(instructions: &'a [Instruction]) -> Self {
+        Cpu {
             register_x: 1,
             cycle: 0,
             instructions,
         }
     }
 
-    fn execute(&mut self, mut f: impl FnMut(CycleResult) -> ()) {
+    fn execute(&mut self, mut f: impl FnMut(CycleResult)) {
         for i in self.instructions {
             match i {
                 Instruction::AddX(v) => {

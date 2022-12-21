@@ -45,7 +45,7 @@ struct Grid {
 
 impl From<&Vec<(usize, usize, usize)>> for Grid {
     fn from(value: &Vec<(usize, usize, usize)>) -> Self {
-        Grid::from_points(&value)
+        Grid::from_points(value)
     }
 }
 

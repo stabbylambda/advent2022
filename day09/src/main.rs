@@ -127,7 +127,7 @@ fn problem(knot_count: usize, input: &Input) -> usize {
 
                 // only track the tail positions
                 if k == knot_count - 1 {
-                    visited.insert(points[k].clone());
+                    visited.insert(points[k]);
                 }
             }
 
@@ -141,7 +141,7 @@ fn problem(knot_count: usize, input: &Input) -> usize {
 
 // horrible hacky display code that barely works
 fn display(positions: Vec<Knot>) {
-    let size = GRID_SIZE as i32;
+    let size = GRID_SIZE;
     let (ox, oy) = (size / 2, size / 2);
     let mut grid = vec![vec![None; size as usize]; size as usize];
     for (idx, Knot((x, y))) in positions.iter().enumerate() {
@@ -209,7 +209,7 @@ R 17
 D 10
 L 25
 U 20"#;
-        let input = parse(&input);
+        let input = parse(input);
         let result = problem2(&input);
         assert_eq!(result, 36)
     }

@@ -53,7 +53,7 @@ fn parse_operation(input: &str) -> IResult<&str, Operation> {
             )),
             tag(" "),
             alt((
-                map(nom_u64, |x| OperationValue::Constant(u64::from(x))),
+                map(nom_u64, OperationValue::Constant),
                 map(tag("old"), |_| OperationValue::Old),
             )),
         ),
@@ -79,12 +79,12 @@ fn parse_monkey(input: &str) -> IResult<&str, Monkey> {
             preceded(tag("    If false: throw to monkey "), nom_u64),
         )),
         |(number, items, operation, divisible_by, if_true, if_false)| {
-            let items = items.iter().map(|x| u64::from(*x)).collect();
+            let items = items.to_vec();
             Monkey {
                 number,
                 items,
                 operation,
-                divisible_by: u64::from(divisible_by),
+                divisible_by,
                 if_true: if_true as usize,
                 if_false: if_false as usize,
                 inspected: 0,
@@ -94,8 +94,8 @@ fn parse_monkey(input: &str) -> IResult<&str, Monkey> {
 }
 fn parse(input: &str) -> Input {
     let result: IResult<&str, Input> = separated_list1(tag("\n\n"), parse_monkey)(input);
-    let monkeys = result.unwrap().1;
-    monkeys
+
+    result.unwrap().1
 }
 
 type ThrowTo = (u64, usize);
@@ -122,13 +122,13 @@ impl Monkey {
             Operation::Add(v) => {
                 item + match v {
                     OperationValue::Constant(x) => x,
-                    OperationValue::Old => &item,
+                    OperationValue::Old => item,
                 }
             }
             Operation::Mul(v) => {
                 item * match v {
                     OperationValue::Constant(x) => x,
-                    OperationValue::Old => &item,
+                    OperationValue::Old => item,
                 }
             }
         };
@@ -173,8 +173,8 @@ fn print_monkeys(monkeys: &Input) {
 
 fn get_monkey_business(monkeys: &mut Input) -> usize {
     monkeys.sort_by(|a, b| b.inspected.cmp(&a.inspected));
-    let monkey_business = monkeys[0].inspected * monkeys[1].inspected;
-    monkey_business
+
+    monkeys[0].inspected * monkeys[1].inspected
 }
 
 fn problem1(monkeys: &mut Input) -> usize {

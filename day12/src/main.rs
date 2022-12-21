@@ -47,11 +47,7 @@ impl Position {
     }
 
     fn is_potential_start(&self) -> bool {
-        match self {
-            Position::Start => true,
-            Position::Normal('a') => true,
-            _ => false,
-        }
+        matches!(self, Position::Start | Position::Normal('a'))
     }
 }
 
@@ -62,10 +58,10 @@ fn parse(input: &str) -> Input {
             many1(alt((
                 map(tag("S"), |_| Position::Start),
                 map(tag("E"), |_| Position::End),
-                map(none_of("\n"), |c| Position::Normal(c)),
+                map(none_of("\n"), Position::Normal),
             ))),
         ),
-        |points| Map::new(points),
+        Map::new,
     )(input);
 
     result.unwrap().1
@@ -112,9 +108,8 @@ fn problem2(map: &Input) -> usize {
     // find the only finish square
     let mut finish: usize = 0;
     for square in map.into_iter() {
-        match square.data {
-            Position::End => finish = square.get_grid_index(),
-            _ => {}
+        if let Position::End = square.data {
+            finish = square.get_grid_index()
         }
     }
 

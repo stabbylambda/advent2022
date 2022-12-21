@@ -93,7 +93,7 @@ fn find_all_paths<'a>(
         .iter()
         .filter_map(|next| {
             let dist = caves.distances[[position, next.id]];
-            if !opened_valves.contains(&next) && dist < time_left {
+            if !opened_valves.contains(next) && dist < time_left {
                 Some((*next, dist))
             } else {
                 None
@@ -114,7 +114,7 @@ fn find_all_paths<'a>(
             new_opened_valves.push(*x);
 
             // and recursively find all the remaining paths
-            find_all_paths(&caves, x.id, new_opened_valves, new_time_left)
+            find_all_paths(caves, x.id, new_opened_valves, new_time_left)
         })
         .collect();
 
@@ -142,11 +142,11 @@ fn problem1(caves: &Input) -> u32 {
     let time_left = 30;
 
     // find all the possible paths through the maze
-    let all_paths = find_all_paths(&caves, caves.aa_index, Vec::new(), time_left);
+    let all_paths = find_all_paths(caves, caves.aa_index, Vec::new(), time_left);
     // score all the paths
     let path_scores = all_paths
         .iter()
-        .map(|path| path_score(&caves, path, time_left));
+        .map(|path| path_score(caves, path, time_left));
 
     // get the max
     path_scores.max().unwrap()
@@ -156,7 +156,7 @@ fn problem2(caves: &Input) -> u32 {
     let time_left = 26;
 
     // find all the possible paths through the maze
-    let all_paths = find_all_paths(&caves, caves.aa_index, Vec::new(), time_left);
+    let all_paths = find_all_paths(caves, caves.aa_index, Vec::new(), time_left);
     // score all the paths
     let mut path_scores: Vec<(BTreeSet<ValveId>, u32)> = all_paths
         .iter()
@@ -165,7 +165,7 @@ fn problem2(caves: &Input) -> u32 {
                 // we're going to need to do set comparison later, so just make all the paths sets
                 // note: we probably could have done this and the pathing with a bitvec? would that have been faster?
                 path.iter().map(|v| v.id).collect(),
-                path_score(&caves, path, time_left),
+                path_score(caves, path, time_left),
             )
         })
         .collect();
@@ -185,14 +185,14 @@ fn problem2(caves: &Input) -> u32 {
         }
 
         // only compare scores that are smaller than our current score
-        for elephant_idx in human_idx + 1..path_scores.len() {
+        (human_idx + 1..path_scores.len()).for_each(|elephant_idx| {
             let (elephant_path, elephant_score) = &path_scores[elephant_idx];
 
             // we want the best score where both the human and elephant open disjoint sets of valves
-            if human_path.is_disjoint(&elephant_path) {
+            if human_path.is_disjoint(elephant_path) {
                 answer = answer.max(human_score + elephant_score);
             }
-        }
+        });
     }
 
     answer

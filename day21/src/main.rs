@@ -47,7 +47,7 @@ impl<'a> MonkeyValue<'a> {
 
 type Input<'a> = Vec<(&'a str, MonkeyValue<'a>)>;
 
-fn monkey_value<'a>(input: &'a str) -> IResult<&'a str, MonkeyValue<'a>> {
+fn monkey_value(input: &str) -> IResult<&str, MonkeyValue> {
     alt((
         map(nom_i64, |x| MonkeyValue::Literal(Some(x))),
         map(separated_pair(alpha1, tag(" + "), alpha1), |(lhs, rhs)| {
@@ -72,84 +72,98 @@ fn parse(input: &str) -> Input {
     result.unwrap().1
 }
 
-fn evaluate(current: &str, map: &HashMap<&str, MonkeyValue>) -> Option<i64> {
-    let current = map[current];
+struct Equation<'a> {
+    map: HashMap<&'a str, MonkeyValue<'a>>,
+}
 
-    match current {
-        MonkeyValue::Literal(x) => x,
-        MonkeyValue::Plus(l, r) => evaluate(l, map).and_then(|l| evaluate(r, map).map(|r| l + r)),
-        MonkeyValue::Minus(l, r) => evaluate(l, map).and_then(|l| evaluate(r, map).map(|r| l - r)),
-        MonkeyValue::Times(l, r) => evaluate(l, map).and_then(|l| evaluate(r, map).map(|r| l * r)),
-        MonkeyValue::Divides(l, r) => {
-            evaluate(l, map).and_then(|l| evaluate(r, map).map(|r| l / r))
+impl<'a> Equation<'a> {
+    fn new(input: &'a Input) -> Equation<'a> {
+        let map = input.iter().copied().collect();
+        Equation { map }
+    }
+
+    fn evaluate(&self, current: &str) -> Option<i64> {
+        let current = self.map[current];
+
+        if let MonkeyValue::Literal(x) = current {
+            return x;
         }
-        MonkeyValue::Equals(l, r) => {
-            evaluate(l, map).and_then(|l| evaluate(r, map).map(|r| (l == r) as i64))
+
+        match current {
+            MonkeyValue::Plus(l, r) => self
+                .evaluate(l)
+                .and_then(|l| self.evaluate(r).map(|r| l + r)),
+            MonkeyValue::Minus(l, r) => self
+                .evaluate(l)
+                .and_then(|l| self.evaluate(r).map(|r| l - r)),
+            MonkeyValue::Times(l, r) => self
+                .evaluate(l)
+                .and_then(|l| self.evaluate(r).map(|r| l * r)),
+            MonkeyValue::Divides(l, r) => self
+                .evaluate(l)
+                .and_then(|l| self.evaluate(r).map(|r| l / r)),
+            _ => unreachable!("Something went wrong"),
         }
+    }
+
+    fn solve(&self, id: &str, value_to_solve: Option<i64>) -> Option<i64> {
+        // We're here, so just return the value to solve, we've already solved it
+        if id == "humn" {
+            return value_to_solve;
+        }
+
+        let monkey = self.map[id];
+        let Some((l, r)) = monkey.get_dependencies() else { panic!(); };
+
+        // one of these will be none and the other will be a solved monkey
+        let left = self.evaluate(l);
+        let right = self.evaluate(r);
+
+        let (unknown_id, known) = match (left, right) {
+            (None, Some(x)) => (l, x),
+            (Some(x), None) => (r, x),
+            _ => panic!("No idea what went wrong here"),
+        };
+
+        // this is the starting point, so go ahead and recurse on the unknown side of the equation
+        if id == "root" {
+            return self.solve(unknown_id, Some(known));
+        }
+
+        let value_to_solve = value_to_solve.map(|value| match monkey {
+            MonkeyValue::Plus(_, _) => value - known,
+            MonkeyValue::Minus(_, _) if l == unknown_id => value + known,
+            MonkeyValue::Minus(_, _) if r == unknown_id => known - value,
+            MonkeyValue::Divides(_, _) if l == unknown_id => value * known,
+            MonkeyValue::Divides(_, _) if r == unknown_id => known / value,
+            MonkeyValue::Times(_, _) => value / known,
+
+            _ => unreachable!(),
+        });
+
+        self.solve(unknown_id, value_to_solve)
     }
 }
 
 fn problem1(input: &Input) -> i64 {
-    let map: HashMap<_, _> = input.into_iter().map(|x| *x).collect();
-    evaluate("root", &map).unwrap()
-}
-
-fn solve(
-    id: &str,
-    map: &mut HashMap<&str, MonkeyValue>,
-    value_to_solve: Option<i64>,
-) -> Option<i64> {
-    // We're here, so just return the value to solve, we've already solved it
-    if id == "humn" {
-        return value_to_solve;
-    }
-
-    let monkey = map[id];
-    let Some((l, r)) = monkey.get_dependencies() else { panic!(); };
-
-    // one of these will be none and the other will be a solved monkey
-    let left = evaluate(l, &map);
-    let right = evaluate(r, &map);
-
-    let (unknown_id, known) = match (left, right) {
-        (None, Some(x)) => (l, x),
-        (Some(x), None) => (r, x),
-        _ => panic!("No idea what went wrong here"),
-    };
-
-    // this is the starting point, so go ahead and recurse on the unknown side of the equation
-    if id == "root" {
-        return solve(unknown_id, map, Some(known));
-    }
-
-    let value_to_solve = value_to_solve.map(|value| match monkey {
-        MonkeyValue::Plus(_, _) => value - known,
-        MonkeyValue::Minus(_, _) if l == unknown_id => value + known,
-        MonkeyValue::Minus(_, _) if r == unknown_id => known - value,
-        MonkeyValue::Divides(_, _) if l == unknown_id => value * known,
-        MonkeyValue::Divides(_, _) if r == unknown_id => known / value,
-        MonkeyValue::Times(_, _) => value / known,
-
-        _ => unreachable!(),
-    });
-
-    solve(unknown_id, map, value_to_solve)
+    let equation = Equation::new(input);
+    equation.evaluate("root").unwrap()
 }
 
 fn problem2(input: &Input) -> i64 {
-    let mut map: HashMap<_, _> = input.into_iter().map(|x| *x).collect();
+    let mut equation = Equation::new(input);
 
     // set root to an Equals Monkey
-    let root = map.get_mut("root").unwrap();
+    let root = equation.map.get_mut("root").unwrap();
     let Some((l, r)) = root.get_dependencies() else { panic!()};
     *root = MonkeyValue::Equals(l, r);
 
     // set humn to None so the whole tree and any tree that contains it will eval to None
-    let humn = map.get_mut("humn").unwrap();
+    let humn = equation.map.get_mut("humn").unwrap();
     *humn = MonkeyValue::Literal(None);
 
     // keep solving "the other side" of the tree so we can get a literal to factor out of the other side of the equality check
-    solve("root", &mut map, None).unwrap()
+    equation.solve("root", None).unwrap()
 }
 
 #[cfg(test)]
@@ -158,7 +172,6 @@ mod test {
 
     use crate::{parse, problem1, problem2};
     #[test]
-    #[ignore]
     fn first() {
         let input = get_raw_input();
         let input = parse(&input);

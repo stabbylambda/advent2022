@@ -79,7 +79,7 @@ impl Input<'_> {
         )(s)
     }
 
-    fn parse<'a>(raw: &'a str) -> Input<'a> {
+    fn parse(raw: &str) -> Input {
         map(
             separated_pair(
                 Input::parse_stacks,
