@@ -86,10 +86,6 @@ fn parse(input: &str) -> Input {
     result.unwrap().1
 }
 
-fn simulate(input: &Input, start: (usize, usize), end: (usize, usize), round: usize) -> usize {
-    round
-}
-
 fn gcd(x: i64, y: i64) -> i64 {
     let mut x = x.abs();
     let mut y = y.abs();
@@ -115,8 +111,12 @@ struct Valley {
 }
 
 impl Valley {
-    fn is_end(&self, (x, y, z): (i64, i64, i64)) -> bool {
-        x == self.width - 2 && y == self.height - 1
+    fn get_start(&self) -> (i64, i64) {
+        (1, 0)
+    }
+
+    fn get_end(&self) -> (i64, i64) {
+        (self.width - 2, self.height - 1)
     }
 
     fn is_free(&self, p @ (x, y, z): &(i64, i64, i64)) -> bool {
@@ -174,53 +174,66 @@ impl Valley {
             cycle,
         }
     }
-}
 
-fn travel_time(valley: &Valley, start: (i64, i64, i64)) -> Option<usize> {
-    let mut distances = HashMap::new();
-    let mut queue = BinaryHeap::new();
+    fn travel_time(&self, start: (i64, i64, i64), (tx, ty): (i64, i64)) -> Option<i64> {
+        let mut distances = HashMap::new();
+        let mut queue = BinaryHeap::new();
 
-    distances.insert(start, 0);
-    queue.push((Reverse(0), start));
+        distances.insert(start, 0);
+        queue.push((Reverse(0), start));
 
-    while let Some((Reverse(distance), position @ (x, y, t))) = queue.pop() {
-        // have we reached the end? if so, our third dimension is the travel time here
-        if valley.is_end(position) {
-            return Some(distance);
-        }
+        while let Some((Reverse(distance), (x, y, t))) = queue.pop() {
+            // have we reached the end? if so, our third dimension is the travel time here
+            if (x, y) == (tx, ty) {
+                return Some(distance as i64);
+            }
 
-        // get our neighbors in spacetime
-        let next_time = (t + 1) % valley.cycle;
-        let neighbors = [
-            (x, y, next_time),     // wait
-            (x - 1, y, next_time), // west
-            (x + 1, y, next_time), // east
-            (x, y - 1, next_time), // north
-            (x, y + 1, next_time), // south
-        ];
+            // get our neighbors in spacetime
+            let next_time = (t + 1) % self.cycle;
+            let neighbors = [
+                (x, y, next_time),     // wait
+                (x - 1, y, next_time), // west
+                (x + 1, y, next_time), // east
+                (x, y - 1, next_time), // north
+                (x, y + 1, next_time), // south
+            ];
 
-        for neighbor in neighbors {
-            if valley.is_free(&neighbor) {
-                let neighbor_distance = distances.entry(neighbor).or_insert(usize::MAX);
+            for neighbor in neighbors {
+                if self.is_free(&neighbor) {
+                    let neighbor_distance = distances.entry(neighbor).or_insert(usize::MAX);
 
-                if *neighbor_distance > distance + 1 {
-                    *neighbor_distance = distance + 1;
-                    queue.push((Reverse(*neighbor_distance), neighbor));
+                    if *neighbor_distance > distance + 1 {
+                        *neighbor_distance = distance + 1;
+                        queue.push((Reverse(*neighbor_distance), neighbor));
+                    }
                 }
             }
         }
+        None
     }
-
-    None
 }
 
-fn problem1(input: &Input) -> usize {
+fn problem1(input: &Input) -> i64 {
     let valley = Valley::new(input);
-    travel_time(&valley, (1, 0, 0)).unwrap()
+    valley.travel_time((1, 0, 0), valley.get_end()).unwrap()
 }
 
-fn problem2(_input: &Input) -> u32 {
-    todo!()
+fn problem2(input: &Input) -> i64 {
+    let valley = Valley::new(input);
+    let start = valley.get_start();
+    let end = valley.get_end();
+
+    let t1 = valley
+        .travel_time((start.0, start.1, 0), valley.get_end())
+        .unwrap();
+    let t2 = valley
+        .travel_time((end.0, end.1, t1), valley.get_start())
+        .unwrap();
+    let t3 = valley
+        .travel_time((start.0, start.1, t1 + t2), valley.get_end())
+        .unwrap();
+
+    t1 + t2 + t3
 }
 
 #[cfg(test)]
@@ -241,6 +254,6 @@ mod test {
         let input = get_raw_input();
         let input = parse(&input);
         let result = problem2(&input);
-        assert_eq!(result, 0)
+        assert_eq!(result, 54)
     }
 }
