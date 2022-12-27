@@ -32,6 +32,7 @@ enum Instruction {
     TurnRight,
 }
 
+#[allow(dead_code)]
 fn print_map(grid: &Array2<Space>, player_position: &Position) {
     for (y, row) in grid.outer_iter().enumerate() {
         for (x, space) in row.iter().enumerate() {
@@ -284,6 +285,7 @@ mod test {
     }
 
     #[test]
+    #[ignore]
     fn second() {
         let input = get_raw_input();
         let input = parse(&input);

@@ -85,7 +85,7 @@ impl Valley {
         (self.width - 2, self.height - 1)
     }
 
-    fn is_free(&self, p @ (x, y, z): &(i64, i64, i64)) -> bool {
+    fn is_free(&self, p @ (x, y, _z): &(i64, i64, i64)) -> bool {
         *x >= 0 && *y >= 0 && !self.points.contains(p)
     }
 

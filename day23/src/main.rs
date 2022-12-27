@@ -15,7 +15,7 @@ fn main() {
     let score = problem1(&mut input.clone());
     println!("problem 1 score: {score}");
 
-    let score = problem2(&mut input.clone());
+    let score = problem2(&mut input);
     println!("problem 2 score: {score}");
 }
 
@@ -137,6 +137,7 @@ fn problem1(input: &mut Input) -> u64 {
     x_range * y_range - (input.len() as u64)
 }
 
+#[allow(dead_code)]
 fn print_map(input: &Input) {
     let &min_y = input.iter().map(|(_, y)| y).min().unwrap().min(&0);
     let &max_y = input.iter().map(|(_, y)| y).max().unwrap().max(&4);
