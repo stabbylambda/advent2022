@@ -1,5 +1,4 @@
 use common::get_raw_input;
-use core::fmt::Debug;
 use nom::{
     branch::alt,
     character::complete::{char, newline},
@@ -10,7 +9,6 @@ use nom::{
 use std::{
     cmp::Reverse,
     collections::{BTreeSet, BinaryHeap, HashMap},
-    fmt::Display,
 };
 
 fn main() {
@@ -24,27 +22,12 @@ fn main() {
     println!("problem 2 score: {score}");
 }
 
-#[derive(PartialEq, Eq)]
 enum Tile {
     Wall,
     Empty,
     Blizzard(Direction),
 }
 
-impl Display for Tile {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match self {
-            Self::Wall => write!(f, "#"),
-            Self::Empty => write!(f, "."),
-            Self::Blizzard(Direction::Up) => write!(f, "^"),
-            Self::Blizzard(Direction::Down) => write!(f, "v"),
-            Self::Blizzard(Direction::Left) => write!(f, "<"),
-            Self::Blizzard(Direction::Right) => write!(f, ">"),
-        }
-    }
-}
-
-#[derive(Debug, PartialEq, Eq)]
 enum Direction {
     Up,
     Down,
@@ -52,24 +35,8 @@ enum Direction {
     Right,
 }
 
-struct Entity {
-    coords: (u32, u32),
-    tile: Tile,
-}
-
 type Point = (i64, i64, i64);
 type Input = Vec<Vec<Tile>>;
-
-fn print_map(input: &Input) {
-    println!();
-    for row in input {
-        for cell in row {
-            print!("{cell}");
-        }
-        println!();
-    }
-    println!();
-}
 
 fn parse(input: &str) -> Input {
     let result: IResult<&str, Input> = separated_list1(
@@ -86,20 +53,19 @@ fn parse(input: &str) -> Input {
     result.unwrap().1
 }
 
-fn gcd(x: i64, y: i64) -> i64 {
-    let mut x = x.abs();
-    let mut y = y.abs();
-
-    while y != 0 {
-        let t = y;
-        y = x % y;
-        x = t;
-    }
-
-    x
-}
-
 fn lcm(a: i64, b: i64) -> i64 {
+    fn gcd(x: i64, y: i64) -> i64 {
+        let mut x = x.abs();
+        let mut y = y.abs();
+
+        while y != 0 {
+            let t = y;
+            y = x % y;
+            x = t;
+        }
+
+        x
+    }
     (a * b).abs() / gcd(a, b)
 }
 
@@ -185,29 +151,28 @@ impl Valley {
         while let Some((Reverse(distance), (x, y, t))) = queue.pop() {
             // have we reached the end? if so, our third dimension is the travel time here
             if (x, y) == (tx, ty) {
-                return Some(distance as i64);
+                return Some(distance);
             }
 
             // get our neighbors in spacetime
             let next_time = (t + 1) % self.cycle;
-            let neighbors = [
+            [
                 (x, y, next_time),     // wait
                 (x - 1, y, next_time), // west
                 (x + 1, y, next_time), // east
                 (x, y - 1, next_time), // north
                 (x, y + 1, next_time), // south
-            ];
+            ]
+            .into_iter()
+            .filter(|x| self.is_free(x))
+            .for_each(|neighbor| {
+                let neighbor_distance = distances.entry(neighbor).or_insert(i64::MAX);
 
-            for neighbor in neighbors {
-                if self.is_free(&neighbor) {
-                    let neighbor_distance = distances.entry(neighbor).or_insert(usize::MAX);
-
-                    if *neighbor_distance > distance + 1 {
-                        *neighbor_distance = distance + 1;
-                        queue.push((Reverse(*neighbor_distance), neighbor));
-                    }
+                if *neighbor_distance > distance + 1 {
+                    *neighbor_distance = distance + 1;
+                    queue.push((Reverse(*neighbor_distance), neighbor));
                 }
-            }
+            });
         }
         None
     }
